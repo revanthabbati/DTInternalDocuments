@@ -1,0 +1,5681 @@
+openapi: 3.0.1
+info:
+  title: DispatchTrack API
+  description: >
+    # Authentication
+    
+    The authentication for this API is done via Oauth2 Access Token:
+
+    - **GetTokenAuth**  
+
+    You can find the client ID and secret in your application's Admin - Oauth2 Settings tab.  
+    
+    These are then passed via Basic Auth in the request to server's /oauth2/token endpoint to get the access token.  
+
+    - **Auth**  
+
+    With the Oauth2 Access Token received from /oauth2/token request, API requests for remaining API endpoints can be made.  
+
+    It has to be sent as an Authorization Bearer header in the request.  
+
+    If an invalid or expired access token is used, API will send back a 401 status.  
+
+  version: ''
+  x-logo:
+    url: "https://dmlzklevomxxt.cloudfront.net/web/images/V2/logo/dt-logo-2.svg"
+    backgroundColor: "#132045"
+    altText: "DispatchTrack API"
+servers:
+- url: https://dtdapi.dispatchtrack.com/api/v1
+paths:
+  /oauth2/token:
+    post:
+      tags:
+      - Orders
+      summary: Get Oauth2 Access Token  
+      description: >
+        > Note: The Client ID and Secret aren't included in the POST body, but rather are placed in the HTTP Authorization header following the rules of HTTP Basic Auth.
+
+        ```
+          # Header sample
+
+          Authorization: Basic c2FjbGllbnRpZDpzYWNsaWVudHNlY3JldA==
+
+          # base64(clientId + ":" + clientSecret) generates c2FjbGllbnRpZDpzYWNsaWVudHNlY3JldA==
+        ```
+      security: 
+        - GetTokenAuth: []
+      requestBody:
+        $ref: '#/components/requestBodies/OauthTokenRequest'
+      responses:
+        200:
+          description: Oauth2 Token Fetch Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OauthToken'
+        400:
+          description: Oauth2 Token Fetch Failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OauthTokenError'
+
+  /add-order:
+    post:
+      tags:
+      - Orders
+      summary: Add Orders
+      security:
+        - Auth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                service_orders:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ImportOrder'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddOrderSuccess'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddOrderError'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/UnauthorizedInvalidToken'
+                  - $ref: '#/components/schemas/UnauthorizedAccessWithNote'
+  
+  /delete-order:
+    delete:
+      tags:
+      - Orders
+      summary: Delete Orders
+      security:
+        - Auth: []
+      parameters:
+      - name: order_number
+        in: query
+        description: Order Numbers - comma separated list
+        required: true
+        schema:
+          type: string
+          example: '100001,100002'
+      - name: date
+        in: query
+        description: Date (mm/dd/yyyy)
+        required: false
+        schema:
+          type: string
+          example: '08/03/2020'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteOrderSuccess'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteOrderError'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/UnauthorizedInvalidToken'
+                  - $ref: '#/components/schemas/UnauthorizedAccessWithNote'
+
+  /export:
+    post:
+      tags:
+      - Orders
+      summary: Export Orders
+      security:
+        - Auth: []
+      requestBody:
+        $ref: '#/components/requestBodies/ExportOrderRequest'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: 
+                    type: integer
+                    example: 200
+                  success:
+                    type: boolean
+                    example: true
+                  count:
+                    type: integer
+                    example: 500
+                  service_orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ServiceOrder'
+                  note:
+                    type: string
+                    example: 'Export Orders Successful'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportOrderError'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/UnauthorizedInvalidToken'
+                  - $ref: '#/components/schemas/UnauthorizedAccessWithNote'
+
+  /orders/eta:
+    get:
+      tags:
+      - Orders
+      summary: Get Order ETA
+      description: >
+        Returns the estimated time of arrival (ETA) for an order.
+
+        **ETA is available only when:**
+        - Order status is "Scheduled" or "In Transit"
+
+      security:
+        - Auth: []
+      parameters:
+        - name: number
+          in: query
+          description: Order number
+          required: true
+          schema:
+            type: string
+            example: '106092'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EtaSuccess'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/EtaUnavailable'
+                  - $ref: '#/components/schemas/EtaOrderNumberRequired'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedInvalidToken'
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EtaOrderNotFound'
+
+  /manifest:
+    post:
+      tags:
+      - Route
+      summary: Manifest Export
+      security:
+        - Auth: []
+      requestBody:
+        $ref: '#/components/requestBodies/ManifestRequest'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: 
+                    type: integer
+                    example: 200
+                  success:
+                    type: boolean
+                    example: true
+                  service_orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ManifestOrder'
+                  note:
+                    type: string
+                    example: 'Manifest Completed'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManifestOrderError'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/UnauthorizedInvalidToken'
+                  - $ref: '#/components/schemas/UnauthorizedAccessWithNote'
+
+  /routes:
+    post:
+      tags:
+      - Route
+      summary: Update routes
+
+      security:
+        - Auth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoutesVendorUploadRequest'
+
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/RoutesUploadSuccessResponse'
+                  - $ref: '#/components/schemas/RoutesUploadValidationErrorResponse'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiRequiredParametersMissingResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/UnauthorizedInvalidToken'
+                  - $ref: '#/components/schemas/UnauthorizedExpiredToken'
+                  - $ref: '#/components/schemas/UnauthorizedRoutesClientVendorMapping'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+
+  /drivers/add:
+    post:
+      tags:
+        - Drivers
+      summary: Add Drivers
+      description: |
+        Import or update drivers with optional profile image upload.
+
+        **Image Upload Options:**
+        - `driver_image_url`: URL to download image from (HTTP/HTTPS)
+        - `driver_image_base64`: Raw Base64-encoded image data
+
+        **Image Validation Rules:**
+        - Supported formats: JPG, JPEG, PNG, GIF
+        - Maximum file size: 1 MB
+        - If both URL and Base64 are provided, URL is attempted first; Base64 is used as fallback if URL fails
+
+        **Base64 Image Fields:**
+        - `driver_image_base64`: Raw Base64 string (NOT data URI format)
+        - `driver_image_content_type`: **REQUIRED** when using Base64 - MIME type (image/jpeg, image/png, image/gif)
+        - `driver_image_filename`: Optional - defaults to driver name if not provided (e.g., "John Doe.jpg")
+
+      security:
+        - Auth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+              - drivers
+              properties:
+                drivers:
+                  type: object
+                  properties:
+                    driver:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/ImportDriver'
+        required: true
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddDriverSuccess'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/DriverNumberMissingError'
+                  - $ref: '#/components/schemas/DriverFirstNameMissingError'
+                  - $ref: '#/components/schemas/DriverLastNameMissingError'
+                  - $ref: '#/components/schemas/DriverFirstNameTooLongError'
+                  - $ref: '#/components/schemas/DriverLastNameTooLongError'
+                  - $ref: '#/components/schemas/DriverNotFoundError'
+                  - $ref: '#/components/schemas/DriverParsingError'
+                  - $ref: '#/components/schemas/DriverImageInvalidUrlError'
+                  - $ref: '#/components/schemas/DriverImageNotReachableError'
+                  - $ref: '#/components/schemas/DriverImageInvalidBase64Error'
+                  - $ref: '#/components/schemas/DriverImageMissingContentTypeError'
+                  - $ref: '#/components/schemas/DriverImageSizeExceededError'
+                  - $ref: '#/components/schemas/DriverImageUnsupportedFormatError'
+                  - $ref: '#/components/schemas/DriverImageCorruptError'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedInvalidToken'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+
+  /drivers:
+    get:
+      tags:
+        - Drivers
+      summary: Export Drivers
+      security:
+        - Auth: []
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriversResponse'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/UnauthorizedInvalidToken'
+                  - $ref: '#/components/schemas/StatusUnauthorizedAccessError'
+        403:
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+
+  /warehouseusers/add:
+    post:
+      tags:
+        - Warehouse Users
+      summary: Add Warehouse Users
+      security:
+        - Auth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+              - warehouse_users
+              properties:
+                warehouse_users:
+                  type: object
+                  properties:
+                    warehouse_user:
+                      oneOf:
+                        - type: array
+                          items:
+                            $ref: '#/components/schemas/ImportWarehouseUser'
+                        - $ref: '#/components/schemas/ImportWarehouseUser'
+        required: true
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddWarehouseUserSuccess'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/WarehouseUserNumberMissingError'
+                  - $ref: '#/components/schemas/WarehouseUserNameMissingError'
+                  - $ref: '#/components/schemas/WarehouseUserLoginMissingError'
+                  - $ref: '#/components/schemas/WarehouseUserPasswordMissingError'
+                  - $ref: '#/components/schemas/WarehouseUserTimeZoneMissingError'
+                  - $ref: '#/components/schemas/WarehouseUserNotFoundError'
+                  - $ref: '#/components/schemas/WarehouseUserParsingError'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedInvalidToken'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+
+  /clients/add:
+    post:
+      tags:
+        - Clients
+      summary: Add Clients
+      security:
+        - Auth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+              - clients
+              properties:
+                clients:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ImportClient'
+        required: true
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddClientSuccess'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ClientNameMissingError'
+                  - $ref: '#/components/schemas/ClientCodeMissingError'
+                  - $ref: '#/components/schemas/ClientNameAndCodeBlankError'
+                  - $ref: '#/components/schemas/ClientCodeDuplicateError'
+                  - $ref: '#/components/schemas/ClientEmailInvalidError'
+                  - $ref: '#/components/schemas/ClientParsingError'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedInvalidToken'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+
+  /clients/export:
+    get:
+      tags:
+        - Clients
+      summary: Export Clients
+      security:
+        - Auth: []
+      parameters:
+        - name: code
+          in: query
+          description: Client code filter
+          required: false
+          schema:
+            type: string
+            example: 'CL001'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportClientSuccess'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedInvalidToken'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+    post:
+      tags:
+        - Clients
+      summary: Export Clients
+      security:
+        - Auth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                export:
+                  type: object
+                  properties:
+                    code:
+                      type: string
+                      example: 'CL001'
+        required: false
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportClientSuccess'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedInvalidToken'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+
+  /accounts/add:
+    post:
+      tags:
+        - Accounts
+      summary: Add Accounts
+      security:
+        - Auth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+              - accounts
+              properties:
+                accounts:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ImportAccount'
+        required: true
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddAccountSuccess'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/AccountNameMissingError'
+                  - $ref: '#/components/schemas/AccountNameBlankError'
+                  - $ref: '#/components/schemas/AccountAliasMissingError'
+                  - $ref: '#/components/schemas/AccountAliasDuplicateError'
+                  - $ref: '#/components/schemas/AccountEmailInvalidError'
+                  - $ref: '#/components/schemas/AccountNotificationFromAddressInvalidError'
+                  - $ref: '#/components/schemas/AccountStartTimeMissingError'
+                  - $ref: '#/components/schemas/AccountEndTimeMissingError'
+                  - $ref: '#/components/schemas/AccountAlreadyExistsError'
+                  - $ref: '#/components/schemas/AccountParsingError'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedInvalidToken'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+
+  /accounts/export:
+    get:
+      tags:
+        - Accounts
+      summary: Export Accounts
+      security:
+        - Auth: []
+      parameters:
+        - name: account_alias
+          in: query
+          description: Account alias filter
+          required: false
+          schema:
+            type: string
+            example: 'ACC001'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportAccountSuccess'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedInvalidToken'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+    post:
+      tags:
+        - Accounts
+      summary: Export Accounts
+      security:
+        - Auth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                export:
+                  type: object
+                  properties:
+                    account_alias:
+                      type: string
+                      example: 'ACC001'
+        required: false
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportAccountSuccess'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedInvalidToken'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+
+  /route_locations/add:
+    post:
+      tags:
+        - Route Locations
+      summary: Add Route Locations
+      security:
+        - Auth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+              - route_locations
+              properties:
+                route_locations:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ImportRouteLocation'
+        required: true
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddRouteLocationSuccess'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/RouteLocationLabelBlankError'
+                  - $ref: '#/components/schemas/RouteLocationNumberBlankError'
+                  - $ref: '#/components/schemas/RouteLocationAddressBlankError'
+                  - $ref: '#/components/schemas/RouteLocationCityBlankError'
+                  - $ref: '#/components/schemas/RouteLocationZipBlankError'
+                  - $ref: '#/components/schemas/RouteLocationAccountsBlankError'
+                  - $ref: '#/components/schemas/RouteLocationAccountsNotFoundError'
+                  - $ref: '#/components/schemas/RouteLocationAccountsInactiveError'
+                  - $ref: '#/components/schemas/RouteLocationAlreadyExistsError'
+                  - $ref: '#/components/schemas/RouteLocationNumberDuplicateError'
+                  - $ref: '#/components/schemas/RouteLocationParsingError'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedInvalidToken'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+
+  /route_locations/export:
+    get:
+      tags:
+        - Route Locations
+      summary: Export Route Locations
+      security:
+        - Auth: []
+      parameters:
+        - name: location_number
+          in: query
+          description: Location number filter
+          required: false
+          schema:
+            type: string
+            example: 'LOC001'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportRouteLocationSuccess'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedInvalidToken'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+    post:
+      tags:
+        - Route Locations
+      summary: Export Route Locations
+      security:
+        - Auth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                export:
+                  type: object
+                  properties:
+                    location_number:
+                      type: string
+                      example: 'LOC001'
+        required: false
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportRouteLocationSuccess'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedInvalidToken'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+
+  /users/add:
+    post:
+      tags:
+        - Users
+      summary: Add Users
+      security:
+        - Auth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+              - users
+              properties:
+                users:
+                  type: object
+                  properties:
+                    user:
+                      $ref: '#/components/schemas/ImportUser'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/AddUserSuccess'
+                  - $ref: '#/components/schemas/NameBlankError'
+                  - $ref: '#/components/schemas/EmailBlankError'
+                  - $ref: '#/components/schemas/PasswordBlankError'
+                  - $ref: '#/components/schemas/ConfirmPasswordBlankError'
+                  - $ref: '#/components/schemas/PasswordMismatchError'
+                  - $ref: '#/components/schemas/RoleBlankError'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/AddUserError'
+                  - $ref: '#/components/schemas/UserNotFoundError'
+
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedInvalidToken'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+
+  /messaging:
+    post:
+      tags:
+      - Messaging
+      summary: Messaging
+      security:
+        - Auth: []
+      requestBody:
+        $ref: '#/components/requestBodies/MessagingRequest'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagingSuccess'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/MessagingBadRequestError'
+                  - $ref: '#/components/schemas/NoServiceUnitError'
+                  - $ref: '#/components/schemas/NoMessageError'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedInvalidToken'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceUnitNotFoundError'
+
+  /status:
+    post:
+      tags:
+      - Status
+      summary: Status
+      security:
+        - Auth: []
+      requestBody:
+        $ref: '#/components/requestBodies/StatusRequest'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedInvalidToken'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusUnauthorizedAccessError'
+        406:
+          description: Not Acceptable Error
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/StatusNotAcceptableInvalidEmail'
+                  - $ref: '#/components/schemas/StatusNotAcceptableInvalidDate'
+
+  /scheduling-url:
+    get:
+      tags:
+      - Scheduling
+      summary: Get Scheduling URL
+      security:
+        - Auth: []
+      parameters:
+      - name: order_number
+        in: query
+        description: Order Number
+        required: true
+        schema:
+          type: string
+          example: '100001'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SchedulingSuccess'
+                  - $ref: '#/components/schemas/SchedulingFailed'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedInvalidToken'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+
+  /trucks/add_truck:
+    post:
+      tags:
+      - Trucks
+      summary:  Truck Import
+      security:
+        - Auth: []
+      requestBody:
+        $ref: '#/components/requestBodies/TruckImportRequestBody'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: "#/components/schemas/TruckSuccessResponse1"
+                - $ref: "#/components/schemas/TruckSuccessResponse2"
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/MissingTruckNameError'
+                  - $ref: '#/components/schemas/MissingTruckNumberError'
+                  - $ref: '#/components/schemas/MissingLicenseNumberError'
+                  - $ref: '#/components/schemas/MultipleFieldsMissingError'
+                  - $ref: '#/components/schemas/DeviceNumberError'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/UnauthorizedInvalidToken'
+                  # - $ref: '#/components/schemas/TruckImportAPIUnauthorizedExpiredToken'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+
+  /notify:
+    post:
+      tags:
+      - Status
+      summary: Notify
+      security:
+        - Auth: []
+      requestBody:
+        $ref: '#/components/requestBodies/NotifyRequest'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotifySuccess'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedInvalidToken'
+        403:
+          description: Unauthorized Access
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+        406:
+          description: Not Acceptable Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotAcceptableErrorWithVersion'
+
+  /update-order-status:
+    post:
+      tags:
+      - Status
+      summary: Update Order Status
+      security:
+        - Auth: []
+      requestBody:
+        $ref: '#/components/requestBodies/UpdateOrderStatusRequest'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderUpdateSuccessResponse'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/MissingParametersResponse'
+                  - $ref: '#/components/schemas/OrderNotFoundError'
+                  - $ref: '#/components/schemas/CustomerPickupNotEnabledError'
+                  - $ref: '#/components/schemas/OrderNotInScheduledStatusError'
+                  - $ref: '#/components/schemas/UnsupportedServiceTypeError'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessWithNote'
+
+  /rs_api/v2/reservation_choices:
+    get:
+      tags:
+        - Reservations
+      summary: Get Reservation Choices
+      description: >
+        Retrieves available time windows for creating a reservation.
+        This endpoint returns available reservation time slots based on the provided parameters.
+
+        The response includes an array of `reservation_choices`, each containing a Base64-encoded
+        `time_window_id` that must be passed to the Create Reservation endpoint to commit the booking.
+
+        Pagination is supported via `offset`.
+        If `max_options` is provided in the request, it overrides the business setting
+        `reservation_max_no_of_dates_offered`; otherwise the business setting is used.
+        Per-page size is controlled by business setting `reservation_max_no_of_dates_offered_per_page`.
+        The `can_display_more` field in the response indicates whether additional pages are available.
+
+        Example when `ignore_capacity=true`:
+        `{"reservation_choices":[{"time_window":"08:30 AM to 10:30 AM","date":"2025-05-20","time_window_id":"...","capacity_filled_percentage":82.00}],"message":"Success","can_display_more":true}`
+      security:
+        - RsApiAuth: []
+      parameters:
+        - name: code
+          in: query
+          description: Business code for authentication. Can also be sent via the `Code` HTTP header.
+          required: true
+          schema:
+            type: string
+        - name: api_key
+          in: query
+          description: API key for authentication. Can also be sent via the `Api-Key` HTTP header.
+          required: true
+          schema:
+            type: string
+        - name: zip
+          in: query
+          description: Zip code (required)
+          required: true
+          schema:
+            type: string
+            example: '95064 or 1* or 12424,12456'
+        - name: address_line1
+          in: query
+          description: Address line 1
+          required: false
+          schema:
+            type: string
+            example: '1156 high street'
+        - name: address_line2
+          in: query
+          description: Address line 2
+          required: false
+          schema:
+            type: string
+        - name: city
+          in: query
+          description: City
+          required: false
+          schema:
+            type: string
+            example: 'Santa Cruz'
+        - name: state
+          in: query
+          description: State
+          required: false
+          schema:
+            type: string
+            example: 'CA'
+        - name: account
+          in: query
+          description: Account name (used if accounts are enabled)
+          required: false
+          schema:
+            type: string
+            example: 'Acc1'
+        - name: service_type
+          in: query
+          description: Service type name
+          required: false
+          schema:
+            type: string
+            example: 'Delivery'
+        - name: service_time
+          in: query
+          description: Service time in minutes
+          required: false
+          schema:
+            type: integer
+            example: 30
+        - name: skill_level
+          in: query
+          description: Skill level
+          required: false
+          schema:
+            type: integer
+            example: 1
+        - name: pieces
+          in: query
+          description: Number of pieces
+          required: false
+          schema:
+            type: integer
+            example: 5
+        - name: cubes
+          in: query
+          description: Cube volume (must be greater than 0 if provided)
+          required: false
+          schema:
+            type: number
+            format: float
+            example: 100.5
+        - name: reservation_number
+          in: query
+          description: Existing reservation number (for rescheduling)
+          required: false
+          schema:
+            type: string
+            example: '1234567890'
+        - name: ready_to_schedule_date
+          in: query
+          description: Ready to schedule date (YYYY-MM-DD format)
+          required: false
+          schema:
+            type: string
+            example: '2024-08-03'
+        - name: max_options
+          in: query
+          description: Maximum number of date options to return
+          required: false
+          schema:
+            type: integer
+            example: 10
+        - name: max_days
+          in: query
+          description: Maximum number of days to look ahead
+          required: false
+          schema:
+            type: integer
+            example: 30
+        - name: offset
+          in: query
+          description: Offset for pagination
+          required: false
+          schema:
+            type: integer
+            example: 0
+        - name: ignore_offset
+          in: query
+          description: Whether to ignore offset (for regular reservations)
+          required: false
+          schema:
+            type: string
+            enum: ['true', 'false']
+            example: 'false'
+        - name: ignore_capacity
+          in: query
+          description: >
+            When true, includes full slots and computes capacity_filled_percentage for each reservation choice.
+            When false or omitted, existing behavior is preserved (full slots may be omitted and no capacity metrics are returned).
+          required: false
+          schema:
+            type: string
+            enum: ['true', 'false']
+            example: 'false'
+        - name: no_of_resources
+          in: query
+          description: Number of resources (for appointment reservations, max limit applies)
+          required: false
+          schema:
+            type: integer
+            example: 1
+        - name: generate_reservation_number
+          in: query
+          description: Whether to generate a new reservation number
+          required: false
+          schema:
+            type: string
+            enum: ['true', 'false']
+            example: 'true'
+        - name: send_address_resolution
+          in: query
+          description: Whether to include address resolution information
+          required: false
+          schema:
+            type: string
+            enum: ['true', 'false']
+            example: 'true'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationChoicesSuccess'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/MissingMandatoryFieldsError'
+                  - $ref: '#/components/schemas/InvalidCubesError'
+                  - $ref: '#/components/schemas/InvalidAccountError'
+                  - $ref: '#/components/schemas/InvalidServiceTypeError'
+                  - $ref: '#/components/schemas/InvalidReadyToScheduleDateError'
+                  - $ref: '#/components/schemas/ReservationNotEligibleError'
+                  - $ref: '#/components/schemas/ResourcesExceedingMaxLimitError'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyCodeNotFoundError'
+        403:
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+
+  /rs_api/v2/create_reservation:
+    post:
+      tags:
+        - Reservations
+      summary: Commit Reservation
+      description: >
+        Creates a new reservation or updates an existing reservation with the selected time window.
+        Supports both regular reservations and appointment-based reservations.
+
+        The `time_window_id` must be a valid Base64-encoded value obtained from the Get Reservation Choices endpoint.
+
+        If a `reservation_number` (or `order_number`) that already exists is provided, the system will
+        attempt to reschedule the existing reservation to the new time window, subject to eligibility checks
+        (order status, route status, rescheduling cut-off dates).
+
+        For appointment-based reservations with multiple resources, the system will create separate
+        reservation entries for each resource (e.g., `RES-1`, `RES-1-2`).
+
+        **Additional Fields Warning**: If additional field keys are provided in the request that are not configured
+        for the business in Admin > Additional Fields > Reservations Tab, the reservation will still be created successfully,
+        but the response will include a `warning` field listing all skipped field keys.
+      security:
+        - RsApiAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReservationRequest'
+        required: true
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateReservationSuccess'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/MissingMandatoryFieldsError'
+                  - $ref: '#/components/schemas/InvalidCubesError'
+                  - $ref: '#/components/schemas/InvalidAccountError'
+                  - $ref: '#/components/schemas/InvalidTimeWindowError'
+                  - $ref: '#/components/schemas/CapacityUnavailableError'
+                  - $ref: '#/components/schemas/ReservationNotEligibleForReschedulingError'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyCodeNotFoundError'
+        403:
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+        422:
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationError'
+
+  /rs_api/v2/{reservation_number}/update_reservation:
+    put:
+      tags:
+        - Reservations
+      summary: Update Reservation
+      description: >
+        Updates additional fields for an existing reservation.
+        This endpoint is used to add or update custom/additional fields on a reservation
+        that has already been committed via the Create Reservation endpoint.
+
+        The reservation is looked up by `reservation_number` in the URL path.
+        Returns 404 if the reservation is not found.
+
+        **Additional Fields Warning**: If additional field keys are provided in the request that are not configured
+        for the business in Admin > Additional Fields > Reservations Tab, the reservation will still be updated successfully,
+        but the response will include a `warning` field listing all skipped field keys.
+      security:
+        - RsApiAuth: []
+      parameters:
+        - name: reservation_number
+          in: path
+          description: The reservation number to update
+          required: true
+          schema:
+            type: string
+            example: '1234567890'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateReservationRequest'
+        required: true
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateReservationSuccess'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationError'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyCodeNotFoundError'
+        403:
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationNotFoundError'
+
+  /rs_api/v2/release_reservation:
+    get:
+      tags:
+        - Reservations
+      summary: Release Reservation (GET)
+      description: >
+        Releases a reservation, freeing up the capacity for that time window.
+        Can also unschedule an associated order if eligible.
+
+        Either `reservation_number` or `order_number` must be provided.
+        If `order_number` is provided (without `reservation_number`), the system will look up
+        the associated reservation order from the service order.
+      security:
+        - RsApiAuth: []
+      parameters:
+        - name: code
+          in: query
+          description: Business code for authentication. Can also be sent via the `Code` HTTP header.
+          required: true
+          schema:
+            type: string
+        - name: api_key
+          in: query
+          description: API key for authentication. Can also be sent via the `Api-Key` HTTP header.
+          required: true
+          schema:
+            type: string
+        - name: reservation_number
+          in: query
+          description: Reservation number (required if order_number not provided)
+          required: false
+          schema:
+            type: string
+            example: '1234567890'
+        - name: order_number
+          in: query
+          description: Order number (required if reservation_number not provided)
+          required: false
+          schema:
+            type: string
+            example: '100001'
+        - name: unschedule
+          in: query
+          description: >
+            Whether to unschedule the associated order if it is in Scheduled status.
+            When true, the order will be unscheduled and its status reset to Ready to Reschedule.
+          required: false
+          schema:
+            type: string
+            enum: ['true', 'false']
+            example: 'true'
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseReservationSuccess'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/MissingMandatoryFieldsError'
+                  - $ref: '#/components/schemas/ReservationNotEligibleForReleaseError'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyCodeNotFoundError'
+        403:
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+        422:
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationError'
+    post:
+      tags:
+        - Reservations
+      summary: Release Reservation (POST)
+      description: >
+        Releases a reservation, freeing up the capacity for that time window.
+        Can also unschedule an associated order if eligible.
+
+        Either `reservation_number` or `order_number` must be provided.
+        If `order_number` is provided (without `reservation_number`), the system will look up
+        the associated reservation order from the service order.
+
+        This endpoint supports both GET and POST methods. When using POST, parameters
+        can be sent in the request body instead of the query string.
+      security:
+        - RsApiAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseReservationRequest'
+        required: true
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseReservationSuccess'
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/MissingMandatoryFieldsError'
+                  - $ref: '#/components/schemas/ReservationNotEligibleForReleaseError'
+        401:
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyCodeNotFoundError'
+        403:
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedAccessError'
+        422:
+          description: Unprocessable Entity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationError'
+
+components:
+  requestBodies:
+    OauthTokenRequest:
+      content:
+        application/x-www-form-urlencoded:
+          schema:
+            required:
+            - grant_type
+            properties:
+              grant_type:
+                type: string
+                description: Grant Type (only client_credentials supported)
+                example: client_credentials
+    
+    ManifestRequest:
+      content:
+        application/json:
+          schema:
+            required:
+            - account_name
+            - date
+            properties:
+              account_name:
+                type: string
+                description: Account Name (required if accounts are enabled)
+                example: 'Acc1'
+              date:
+                type: string
+                description: Date (mm/dd/yyyy)
+                example: '08/03/2020'
+              # service_unit_name:
+              #   type: string
+              #   description: Service Unit
+              #   example: 'SU1'
+    
+    ExportOrderRequest:
+      content:
+        application/json:
+          schema:
+            required:
+              - oneOf
+            properties:
+              oneOf:
+                properties:
+                  schedule_date:
+                    type: string
+                    description: Schedule Date (mm/dd/yyyy)
+                    example: '08/03/2020'
+                  request_date:
+                    type: string
+                    description: Request Date (mm/dd/yyyy)
+                    example: '08/03/2020'
+              start_time:
+                type: string
+                description: Start Time
+                example: '10:00 AM'
+              end_time:
+                type: string
+                description: End Time
+                example: '11:00 AM'
+              order_number:
+                type: string
+                description: Service Order Number
+                example: '100001'
+              account_name:
+                type: string
+                description: Account Name
+                example: 'Acc1'
+              status:
+                type: string
+                description: Status
+                example: 'Finished'
+
+    MessagingRequest:
+      content:
+        application/json:
+          schema:
+            properties:
+              message:
+                type: string
+                description: The message content to send
+                example: 'Your delivery route has been updated. Please check for new instructions.'
+              driver:
+                type: string
+                description: The driver identifier
+                example: 'driver_001'
+              service_unit_number:
+                type: string
+                description: The service unit number
+                example: 'SU 123'
+
+    StatusRequest:
+      content:
+        application/json:
+          schema:
+            properties:
+              date:
+                type: string
+                description: Request Date (mm/dd/yyyy)
+                example: '08/03/2020'
+              start_time:
+                type: string
+                description: Start Date (mm/dd/yyyy)
+                example: '08/03/2020'
+              end_time:
+                type: string
+                description: End Date
+                example: '08/04/2020'
+              order_number:
+                type: string
+                description: Service Order Number
+                example: '100001'
+              account:
+                type: string
+                description: Account Name
+                example: 'Acc1'
+              status:
+                type: string
+                description: Status
+                example: 'Finished'
+              customer_id:
+                type: string
+                description: Customer ID
+                example: '123'
+              phone:
+                type: string
+                description: Phone number
+                example: '1234567890'
+              email:
+                type: string
+                description: Email
+                example: 'test@abc.com'
+              schedule_date:
+                type: string
+                description: Schedule date (mm/dd/yyyy)
+                example: '08/03/2020'
+              service_unit:
+                type: string
+                description: Service Unit
+                example: 'SU1'
+              service_type:
+                type: string
+                description: Service type
+                example: 'Delivery'
+            anyOf:
+              - required:
+                  - date
+              - required:
+                  - order_number
+              - required:
+                  - date
+                  - order_number
+    TruckImportRequestBody:
+      description: Truck data to be imported into the system
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/TruckImportRequest'
+
+    NotifyRequest:
+      content:
+        application/json:
+          schema:
+            properties:
+              template_name:
+                type: string
+                description: Template name
+                example: 'unable_to_start'
+              service_order_id:
+                type: string
+                description: Service Order Number
+                example: '100001'
+            required:
+              - template_name
+              - service_order_id
+
+    UpdateOrderStatusRequest:
+      content:
+        application/json:
+          schema:
+            properties:
+              order_number:
+                type: string
+                description: Order Number
+                example: '100001'
+            required:
+              - order_number
+
+  schemas:
+    OauthToken:
+      type: object
+      properties:
+        access_token:
+          type: string
+          example: '0f23feedca76a070dd8d49d9d524b67fa3fe5089'
+        access_token_expires_at:
+          type: string
+          example: '2020-08-03T13:17:05.678Z'
+    OauthTokenError:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          example: 400
+        status:
+          type: integer
+          example: 400
+        code:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: "Invalid Client Credentials"
+        name:
+          type: string
+          example: "invalid_request"
+
+    EtaSuccess:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        eta:
+          type: string
+          description: ETA datetime in order resource time zone
+          example: '2026-02-23 16:30:00 -0800'
+        computed_at:
+          type: string
+          description: Timestamp when the ETA was computed
+          example: '2026-02-23 14:15:00 -0800'
+        version:
+          type: string
+          example: 'v123'
+
+    EtaUnavailable:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: string
+          example: 'ETA unavailable'
+        version:
+          type: string
+          example: 'v123'
+
+    EtaOrderNumberRequired:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: string
+          example: 'Order number is required'
+        version:
+          type: string
+          example: 'v123'
+
+    EtaOrderNotFound:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 404
+        note:
+          type: string
+          example: 'Order not found'
+        version:
+          type: string
+          example: 'v123'
+
+    DeleteOrderSuccess:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        success:
+          type: boolean
+          default: true
+          example: true
+        note:
+          type: string
+          example: 'Orders deleted successfully'
+    DeleteOrderError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        success:
+          type: boolean
+          default: false
+          example: false
+        note:
+          type: string
+          example: 'Required parameters missing'
+
+    AddOrderSuccess:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            failed:
+              type: integer
+              example: 0
+            successful:
+              type: integer
+              example: 1
+            failed_orders:
+              type: array
+              items:
+                type: string
+              example: []
+        status:
+          type: integer
+          example: 200
+        success:
+          type: boolean
+          example: true
+        note:
+          type: string
+          example: "Import Completed"
+    AddOrderError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        success:
+          type: boolean
+          default: false
+          example: false
+        note:
+          type: string
+          example: Required parameters missing
+
+    ServiceOrder:
+      type: object
+      properties:
+        order_number:
+          type: string
+          example: '100001'
+        display_order_number:
+          type: string
+          example: '100001'
+        status:
+          type: string
+          example: New
+        service_type:
+          type: string
+          example: Delivery
+        description:
+          type: string
+          example: This is a sample order
+        account_name:
+          type: string
+          example: Acc1
+        confirmation_status:
+          type: string
+          example: Confirmed
+        text_confirmation_status:
+          type: string
+          example: Delivered
+        stop_number:
+          type: integer
+          example: 1
+        route_locked:
+          type: boolean
+          example: false
+        delivery_date:
+          type: string
+          example: '08/03/2020'
+          description: 'US => MM/DD/YYYY, UK/AU/NZ => DD/MM/YYYY, IN => DD-MM-YYYY'
+        delivery_time_window_start:
+          type: string
+          example: '09:00 AM'
+        delivery_time_window_end:
+          type: string
+          example: '11:00 AM'
+        schedule_date:
+          type: string
+          example: "2024-08-02"
+        scheduled_at:
+          type: string
+          example: "2020-08-03 04:49:44 -0700"
+        time_window_start:
+          type: string
+          example: '10:00 AM'
+        time_window_end:
+          type: string
+          example: '11:00 AM'
+        route_tag:
+          type: string
+          example: 'imp'
+        service_duration:
+          type: integer
+          example: 30
+        service_unit:
+          type: string
+          example: 'SU1'
+        service_time:
+          type: string
+          example: '20'
+        survey_status:
+          type: string
+          example: 'Survey Taken'
+        survey_received_date:
+          type: string
+          example: '2024-08-02'
+        started_at:
+          type: string
+          example: '10:15 AM'
+        finished_at:
+          type: string
+          example: '10:45 AM'
+        amount:
+          type: number
+          format: float
+          description: The amount is limited to two decimal points
+          example: 1235.50
+        # cod_amount:
+        #   type: number
+        #   example: 0.0
+        # cod:
+        #   type: number
+        #   example: 0.0
+        # payment_notes:
+        #   type: string
+        #   example: 'collected check'
+        # payment_collected:
+        #   type: string
+        #   example: 'check'
+        pieces:
+          type: integer
+          example: 5
+        volume:
+          type: number
+          format: float
+          description: Volume cannot be more than 6 digits
+          example: 578.5
+        delivery_charges:
+          type: number
+          format: float
+          example: 25.5
+        sales_tax:
+          type: integer
+          example: 15
+        order_rating:
+          type: integer
+          example: 15
+        truck:
+          type: object
+          properties:
+            id:
+              type: string
+              example: 'ABC 1234'
+            name:
+              type: string
+              example: 'T1'
+            truck_number:
+              type: string
+              example: 'TRK001'
+        drivers:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                example: 'D001'
+              name:
+                type: string
+                example: 'John Doe'
+        direct_dispatch: 
+          type: object
+          description: Use this if you are using Order Level OTP
+          properties:
+            schedule_direct_dispatch:
+              type: boolean
+              example: true
+            direct_dispatch_phone:
+              type: string
+              example: '+11234567890'
+        pod: 
+          type: object
+          properties:
+            url:
+              type: string
+              example: 'https://pod-url/order-number.pdf'
+        customer:
+          $ref: '#/components/schemas/Customer'
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/Image'
+        scanned_documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScannedDocument'
+        notes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Note'
+        service_order_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Item'
+          example:
+            - sku_number: 'sku1'
+              serial_number: 'sn01'
+              description: 'Sofa'
+              quantity: 1
+              weight: 150.5
+              delivered: true
+              delivered_quantity: 1
+              manager_notes: 'This is a manager note'
+              customer_notes: 'This is a customer note'
+              driver_notes: 'Note from driver'
+              amount: 1250.85
+              checked_quantity: 1
+              return_code: 'return'
+              driver_return_code: 'Damaged in transit'
+              manager_return_code: '1'
+              location_code: 'lc1'
+              length: 10.0
+              service_time: 30.125
+              volume: 100.0
+            - sku_number: 'sku2'
+              serial_number: ['sn02', 'sn03']
+              description: 'Table'
+              quantity: 2
+              weight: 200.5
+              delivered: true
+              delivered_quantity: 2
+              manager_notes: 'Manager note for table'
+              customer_notes: 'Customer note for table'
+              driver_notes: 'Driver note for table'
+              amount: 2000.00
+              checked_quantity: 2
+              return_code: 'return'
+              driver_return_code: 'Damaged in transit'
+              manager_return_code: '1'
+              location_code: 'lc2'
+              length: 20.0
+              service_time: 45.125
+              volume: 150.0
+              unit_data_collected:
+                sn02:
+                  manager_notes: null
+                  delivered: false
+                  delivery_completion_mode: "scan"
+                  notes: "notes for sn02"
+                  driver_notes: "driver notes for sn02"
+                  return_code: "return code"
+                  driver_return_code: "driver return code"
+                  loading_scan_time: "2025-01-06 10:00:00"
+                  loading_completion_mode: "scan"
+                  delivery_scan_time: "2025-01-06 10:00:00"
+                sn03:
+                  manager_notes: null
+                  delivered: false
+                  delivery_completion_mode: "scan"
+                  notes: "notes for sn03"
+                  driver_notes: "driver notes for sn03"
+                  return_code: "return code"
+                  driver_return_code: "driver return code"
+                  loading_scan_time: "2025-01-06 10:00:00"
+                  loading_completion_mode: "scan"
+                  delivery_scan_time: "2025-01-06 10:00:00"
+              additional_fields:
+                additional_field_one: 'additional field one value'
+                additional_field_two: 'additional field two value'
+        service_order_histories:
+          type: array
+          items:
+            $ref: '#/components/schemas/History'
+        additional_fields:
+          type: object
+          properties:
+            additional_field_one:
+              type: string
+              example: 'additional field one value'
+            additional_field_two:
+              type: string
+              example: 'additional field two value'
+        custom_fields:
+          type: object
+          properties:
+            custom_field_one:
+              type: string
+              example: 'custom field one value'
+            custom_field_two:
+              type: string
+              example: 'custom field two value'
+        signature:
+          type: object
+          properties:
+            created_at: 
+              type: string
+              example: '2020-08-03 04:49:44 -0700'
+            callback_code:
+              type: string
+              example: '100001'
+            signed_by:
+              type: string
+              nullable: true
+              description: Name of the person who received/signed for the delivery. This field is only included when the 'Enable Customer Signature Name' flag is enabled for the business. If the receiver name was not captured, the value will be null.
+              example: 'Jean-Pierre Dubois'
+        surveys:
+          type: object
+          properties:
+            questions:
+              type: array
+              items:
+                $ref: '#/components/schemas/Question'
+            comments:
+              type: array
+              items:
+                $ref: '#/components/schemas/SurveyComment'
+
+    Question:
+      type: object
+      properties: 
+        number: 
+          type: integer
+          example: 1
+        comment: 
+          type: string
+          example: 'comment on question 1'
+
+    SurveyComment:
+      type: object
+      properties: 
+        comment:
+          type: string
+          example: 'Happy with the service'
+
+    History:
+      type: object
+      properties:
+        date:
+          type: string
+          example: '08/24/2020'
+        time:
+          type: string
+          example: '06:09 AM'
+        latitude:
+          type: number
+          format: float
+          example: 36.9957
+        longitude:
+          type: number
+          format: float
+          example: -122.0611
+        description:
+          type: string
+          example: 'Scheduled for 08/24/2020 at 09:00 AM - 10:00 AM with stop number 1 assigned to DSU1 from Service Order List by John Doe'
+
+    Item:
+      type: object
+      properties:
+        sku_number:
+          type: string
+          example: 'sku1'
+        serial_number:
+          oneOf:
+            - type: string
+              example: 'sn01'
+            - type: array
+              items:
+                type: string
+              example: ['sn01', 'sn02', 'sn03']
+        description:
+          type: string
+          example: 'sofa'
+        line_sequence:
+          type: integer
+          example: 2
+        quantity:
+          type: integer
+          example: 1
+        weight:
+          type: number
+          format: float
+          example: 150.5
+        delivered:
+          type: boolean
+          example: true
+        delivered_quantity:
+          type: integer
+          example: 1
+        manager_notes:
+          type: string
+          example: 'This is a manager note'
+        customer_notes:
+          type: string
+          example: 'This is a customer note'
+        driver_notes:
+          type: string
+          example: 'Note from driver'
+        amount:
+          type: number
+          format: float
+          description: The amount is limited to two decimal points
+          example: 1250.85
+        checked_quantity:
+          type: integer
+          example: 1
+        return_code:
+          type: string
+          example: 'return'
+        driver_return_code:
+          type: string
+          example: 'Damaged in transit'
+        manager_return_code:
+          type: string
+          example: '1'
+        location_code:
+          type: string
+          example: 'lc1'
+        length:
+          type: number
+          format: float
+          example: 10.0
+        service_time:
+          type: number
+          format: float
+          example: 30.125
+        volume:
+          type: number
+          format: float
+          description: Volume cannot be more than 6 digits
+          example: 100.0
+        unit_data_collected:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              manager_notes:
+                type: string
+                example: null
+              delivered:
+                type: boolean
+                example: false
+              delivery_completion_mode:
+                type: string
+                example: "scan"
+              notes:
+                type: string
+                example: "notes"
+              driver_notes:
+                type: string
+                example: "driver notes"
+              return_code:
+                type: string
+                example: "return code"
+              driver_return_code:
+                type: string
+                example: "driver return code"
+              loading_scan_time:
+                type: string
+                example: "2025-01-06 10:00:00"
+              loading_completion_mode:
+                type: string
+                example: "scan"
+              delivery_scan_time:
+                type: string
+                example: "2025-01-06 10:00:00"
+        additional_fields:
+          type: object
+          properties:
+            additional_field_one:
+              type: string
+              example: 'additional field one value'
+            additional_field_two:
+              type: string
+              example: 'additional field two value'
+    Note:
+      type: object
+      properties:
+        content:
+          type: string
+          example: 'Please bring it to the first floor'
+        author:
+          type: string
+          example: 'John Doe'
+        created_at:
+          type: string
+          example: '2020-08-02 05:41:06 -0700'
+
+    ScannedDocument:
+      type: object
+      properties:
+        src:
+          type: string
+          example: 'https://s3-external-1.amazonaws.com/abc/def/media/1234/test.pdf'
+        thumbnail:
+          type: string
+          example: 'https://s3-external-1.amazonaws.com/abc/def/media/1234/test.pdf'
+        created_at:
+          type: string
+          example: '2020-08-02 05:41:06 -0700'
+
+    Image:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 17170
+        name:
+          type: string
+          example: 'test.jpg'
+        src:
+          type: string
+          example: 'https://s3-external-1.amazonaws.com/abc/def/media/1234/test.jpg'
+        thumbnail:
+          type: string
+          example: 'https://s3-external-1.amazonaws.com/abc/def/media/1234/test_thumb.jpg'
+        created_at:
+          type: string
+          example: '2020-08-02 05:41:06 -0700'
+      
+    Customer:
+      type: object
+      required: [first_name, last_name]
+      properties:
+        customer_id:
+          type: string
+          example: '89732'
+        first_name:
+          type: string
+          example: 'John'
+          description: At least one value of these two fields first_name, last_name must be present
+        last_name:
+          type: string
+          example: 'Doe'
+          description: At least one value of these two fields first_name, last_name must be present
+        email:
+          type: string
+          example: 'noreply@dispatchtrack.com'
+        phone1:
+          type: string
+          example: '+11234567890'
+        phone2:
+          type: string
+          example: '+11234567890'
+        phone3:
+          type: string
+          example: '+11234567890'
+        address1:
+          type: string
+          example: '1156 high street'
+        address2:
+          type: string
+          example: 'RK Layout'
+        city:
+          type: string
+          example: 'Santa Cruz'
+        state:
+          type: string
+          example: 'CA'
+        zip:
+          type: string
+          example: '95064'
+        latitude:
+          type: number
+          format: float
+          example: 36.9957
+        longitude:
+          type: number
+          format: float
+          example: -122.0611
+
+    ExportOrderError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        success:
+          type: boolean
+          default: false
+          example: false
+        note:
+          type: string
+          example: Required parameters missing
+
+    ManifestOrder:
+      type: object
+      properties:
+        order_number:
+          type: string
+          example: '100001'
+        service_unit_name:
+          type: string
+          example: 'SU1'
+        route_tag:
+          type: string
+          example: 'FL'
+        customer_code:
+          type: string
+          example: 'cust001'
+        customer_name:
+          type: string
+          example: 'John Doe'
+        driver_name:
+          type: string
+          example: 'Jane Doe'
+        truck_number:
+          type: string
+          example: 't1'
+        schedule_date:
+          type: string
+          example: '08/04/2020'
+        schedule_start_time:
+          type: string
+          example: '10:00 AM'
+        schedule_end_time:
+          type: string
+          example: '11:00 AM'
+        stop_number:
+          type: integer
+          example: 1
+        account_name:
+          type: string
+          example: 'Acc1'
+        route_distance:
+          type: number
+          format: float
+          example: 124.5
+        service_duration:
+          type: integer
+          example: 30
+        
+    ManifestOrderError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        success:
+          type: boolean
+          default: false
+          example: false
+        note:
+          type: string
+          example: 'Required parameters missing'
+
+    ImportOrder:
+      type: object
+      required: [order_number]
+      properties:
+        order_number:
+          type: string
+          example: '100001'
+        account_name:
+          type: string
+          example: 'Acc1'
+        service_type:
+          type: string
+          example: 'Delivery'
+        description:
+          type: string
+          description: Description has a character limit of 500
+          example: 'Sample Order'
+        status:
+          type: string
+          default: 'New'
+          example: 'New'
+          description: Use this if you are using DispatchTrack Customer Self Scheduling System
+        ready_to_schedule_date:
+          type: string
+          description: Use this if you are using DispatchTrack Customer Self Scheduling System (mm/dd/yyyy)
+          example: '08/03/2020'
+        schedule_before_date:
+          type: string
+          description: Use this if you are using DispatchTrack Customer Self Scheduling System (mm/dd/yyyy)
+          example: '08/03/2020'
+        delivery_date:
+          type: string
+          example: '08/03/2020'
+          description: 'US => MM/DD/YYYY, UK/AU/NZ => DD/MM/YYYY, IN => DD-MM-YYYY'
+        stop_time:
+          type: string
+          example: '08:00 AM'
+        service_time:
+          type: integer
+          example: 45
+        request_time_window_start:
+          type: string
+          example: '09:00 AM'
+        request_time_window_end:
+          type: string
+          example: '03:00 PM'
+        delivery_time_window_start:
+          type: string
+          example: '09:00 AM'
+        delivery_time_window_end:
+          type: string
+          example: '10:00 AM'
+        amount:
+          type: number
+          format: float
+          description: The amount is limited to two decimal points
+          example: 1235.80
+        cod_amount:
+          type: number
+          format: float
+          description: The amount is limited to two decimal points
+          example: 0.0
+        cube:
+          type: number
+          format: float
+          description: Cube cannot be more than 6 digits
+          example: 100.0
+        weight:
+          type: number
+          format: float
+          example: 156.78
+        pieces:
+          type: integer
+          example: 5
+        delivery_charge:
+          type: number
+          format: float
+          example: 25.5
+        taxes:
+          type: number
+          format: float
+          example: 10.0
+        skill_level:
+          type: integer
+          example: 1
+        equipment_type:
+          type: string
+          example: 'eqp1'
+        pre_reqs:
+          type: string
+          example: '10000_114'
+        request_delivery_date:
+          type: string
+          example: '03/12/2021'
+        origin:
+          type: string
+          example: '114'
+        schedule_direct_dispatch:
+          type: boolean
+          example: true
+          description: Use this if you are using Order Level OTP
+        direct_dispatch_phone:
+          type: string
+          example: '+11234567890'
+          description: Use this if you are using Order Level OTP
+        revoke_direct_dispatch:
+          type: boolean
+          example: false
+          description: Use this if you are using Order Level OTP
+        additional_fields:
+          type: object
+          properties:
+            additional_field_one_name:
+              type: string
+              example: 'additional field value'
+            additional_field_two_name:
+              type: string
+              example: 'additional field value'
+        custom_fields:
+          type: object
+          properties:
+            custom_field_one_name:
+              type: string
+              example: 'custom field value'
+            custom_field_two_name:
+              type: string
+              example: 'custom field value'
+        customer:
+          type: object
+          properties:
+            first_name:
+              type: string
+              example: 'John'
+              description: At least one value of these two fields first_name, last_name must be present
+            last_name:
+              type: string
+              example: 'Doe'
+              description: At least one value of these two fields first_name, last_name must be present
+            name:
+              type: string
+              example: 'John Doe'
+            address1:
+              type: string
+              example: '1156 high street'
+            address2:
+              type: string
+              example: 'RK Layout'
+            city:
+              type: string
+              example: 'Santa Cruz'
+            state:
+              type: string
+              example: 'CA'
+            zip:
+              type: string
+              example: '95064'
+            phone1:
+              type: string
+              example: '+11234567890'
+            phone2:
+              type: string
+              example: '+11234567890'
+            phone3:
+              type: string
+              example: '+11234567890'
+            email:
+              type: string
+              example: 'noreply@dispatchtrack.com'
+            preferred_contact_mode:
+              type: string
+              example: 'Email,Text'
+              description: 'Needs comma separated values from accepted contact modes - Email,Voice,Text (op)'
+            latitude:
+              type: number
+              format: float
+              example: 36.9957
+              description: Latitude (op)
+            longitude:
+              type: number
+              format: float
+              example: -122.0611
+              description: Longitude (op)
+            customer_id:
+              type: string
+              example: 'cust1'
+            send_survey:
+              type: boolean
+              example: true
+            delivery_radius:
+              type: integer
+              example: 10
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              sku_number:
+                type: string
+                example: 'it01'
+              serial_number:
+                oneOf:
+                  - type: string
+                    example: 'sn01'
+                  - type: array
+                    items:
+                      type: string
+                    example: ['sn01', 'sn02', 'sn03']
+              additional_fields:
+                type: object
+                properties:
+                  additional_field_one:
+                    type: string
+                    example: 'additional field one value'
+                  additional_field_two:
+                    type: string
+                    example: 'additional field two value'
+              description:
+                type: string
+                example: 'Sofa'
+              quantity:
+                type: string
+                example: '1'
+              price:
+                type: integer
+                example: 1500
+              line_sequence:
+                type: integer
+                example: 2
+              service_duration:
+                type: integer
+                example: 15
+              physical_item:
+                type: boolean
+                example: true
+              cube:
+                type: number
+                format: float
+                description: Cube cannot be more than 6 digits
+                example: 100.67
+              weight:
+                type: number
+                format: float
+                example: 54.0
+              length:
+                type: number
+                format: float
+                example: 34.0
+              item_note:
+                type: string
+                example: 'Line item note'
+              location_code:
+                type: string
+                example: 'lc1'
+              skill_level:
+                type: integer
+                example: 1
+              location:
+                type: string
+                example: 'warehouse loc'
+              vendor:
+                type: string
+                example: 'vendor xyz'
+              notes:
+                type: string
+                example: 'This is a test note'
+              sale_number:
+                type: string
+                example: 'sal1234'  
+              service_time:
+                type: number
+                format: float
+                example: 30.01
+                description: >
+                  Item-level service time supports decimals with 3 to 6 digits after the decimal.
+                  Maximum 6 digits before decimal and up to 6 digits after decimal.
+                  Examples: 2.123, 2.100, 12.345678.
+              # volume:
+              #   type: number
+              #   format: float
+              #   description: Volume cannot be more than 7 digits
+              #   example: 100.0
+          example:
+            - sku_number: 'it01'
+              serial_number: 'sn01'
+              description: 'Sofa'
+              quantity: '1'
+              price: 1500
+              line_sequence: 1
+              service_duration: 15
+              physical_item: true
+              cube: 100.67
+              weight: 54.0
+              length: 34.0
+              item_note: 'Line item note'
+              location_code: 'lc1'
+              skill_level: 1
+              location: 'warehouse loc'
+              vendor: 'vendor xyz'
+              notes: 'This is a test note'
+              sale_number: 'sal1234'
+              service_time: 2.125
+            - sku_number: 'it02'
+              serial_number: ['sn02', 'sn03']
+              additional_fields:
+                additional_field_one: 'additional field one value'
+                additional_field_two: 'additional field two value'
+              description: 'Table'
+              quantity: '2'
+              price: 2000
+              line_sequence: 2
+              service_duration: 20
+              physical_item: true
+              cube: 150.50
+              weight: 75.0
+              length: 45.0
+              item_note: 'Second line item note'
+              location_code: 'lc2'
+              skill_level: 2
+              location: 'warehouse loc 2'
+              vendor: 'vendor abc'
+              notes: 'This is another test note'
+              sale_number: 'sal1235'
+              service_time: 45.155
+        notes:
+          type: array
+          description: 'Notes (op)'
+          items:
+            type: object
+            properties:
+              body:
+                type: string
+                example: Please leave the package as is. No setup needed
+
+    ImportDriver:
+      type: object
+      required: [driver_number, first_name, last_name]
+      properties:
+        driver_number:
+          type: string
+          example: 'test t1'
+        name:
+          type: string
+          description: |
+            Driver's name. Optional if first_name and last_name are provided.
+
+          example: "John Doe"
+        first_name:
+          type: string
+          description: |
+            Driver's first name. Maximum 100 characters.
+
+          maxLength: 100
+          example: "John"
+        last_name:
+          type: string
+          description: |
+            Driver's last name. Maximum 100 characters.
+
+          maxLength: 100
+          example: "Doe"
+        login:
+          type: string
+          example: 'logint1'
+        password:
+          type: string
+          example: 'Password@123'
+        description:
+          type: string
+          example: 'Password@123'
+        skill_level:
+          type: string
+          example: '2'
+        efficiency_factor:
+          type: string
+          example: '1'
+        time_zone:
+          type: string
+          example: 'America/New_York'
+        status:
+          type: string
+          example: '1'
+        pay_group:
+          type: string
+          example: 'RK'
+        work_days:
+          type: string
+          example: 'M,T,W,H,F,S,U'
+        enable_sso:
+          type: boolean
+          example: true
+        license_number:
+          type: string
+          example: 'ABC1234567'
+        license_state:
+          type: string
+          example: 'CA'
+        dot_number:
+          type: string
+          example: '1234567890'
+        contact_number:
+          type: string
+          example: '7093188220'
+        calendar_overrides:
+          type: object
+          properties:
+            add_exception:
+              type: array
+              items:
+                type: object
+                properties:
+                  date:
+                    type: string
+                    example: '2025-09-24'
+                  status:
+                    type: string
+                    example: 'Ineligible'
+                  description:
+                    type: string
+                    example: ""
+            remove_exception:
+              type: array
+              items:
+                type: object
+                properties:
+                  date:
+                    type: string
+                    example: '2025-09-25'
+        accounts:
+          type: object
+          properties:
+            account:
+              type: array
+              items:
+                type: string
+              example: ['A1', '500']
+        driver_image_url:
+          type: string
+          description: |
+            URL to download driver profile image. Must be a valid HTTP/HTTPS URL pointing to an image.
+            Supported formats: JPG, JPEG, PNG, GIF. Maximum file size: 1 MB.
+            If both driver_image_url and driver_image_base64 are provided, URL is attempted first;
+            if URL fails, Base64 is used as fallback.
+          example: 'https://i.pravatar.cc/300?img=15'
+        driver_image_base64:
+          type: string
+          description: |
+            Raw Base64-encoded image data (NOT data URI format).
+            REQUIRES driver_image_content_type field.
+            Data URI format (data:image/...;base64,...) is NOT supported.
+            Supported formats: JPG, JPEG, PNG, GIF. Maximum file size: 1 MB (after decoding).
+          example: '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCwAB//2Q=='
+        driver_image_content_type:
+          type: string
+          description: |
+            MIME type of the image. REQUIRED when driver_image_base64 is provided.
+            Supported values: image/jpeg, image/jpg, image/png, image/gif
+          example: 'image/jpeg'
+        driver_image_filename:
+          type: string
+          description: |
+            Optional filename for the uploaded image.
+            If not provided, the driver's name will be used as the filename (e.g., "John Doe.jpg").
+          example: 'driver_photo.jpg'
+
+    AddDriverSuccess:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        note:
+          type: array
+          items:
+            type: string
+          example: ['Imported 1 driver Successfully']
+        version:
+          type: string
+          example: 'v123'
+
+    DriverImportError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: array
+          items:
+            type: string
+          example:
+            - "Some error message related to driver import"
+            - "Imported 0 driver Successfully"
+        version:
+          type: string
+          example: "v123"
+
+    DriverNumberMissingError:
+      allOf:
+        - $ref: '#/components/schemas/DriverImportError'
+        - properties:
+            note:
+              example:
+                - "Number can not be blank for Driver with index 0"
+                - "Imported 0 driver Successfully"
+
+    DriverFirstNameMissingError:
+      allOf:
+        - $ref: '#/components/schemas/DriverImportError'
+        - properties:
+            note:
+              description: First name is mandatory
+              example:
+                - "First name is mandatory for Driver with index 0"
+                - "Imported 0 driver Successfully"
+
+    DriverLastNameMissingError:
+      allOf:
+        - $ref: '#/components/schemas/DriverImportError'
+        - properties:
+            note:
+              description: Last name is mandatory
+              example:
+                - "Last name is mandatory for Driver with index 0"
+                - "Imported 0 driver Successfully"
+
+    DriverFirstNameTooLongError:
+      allOf:
+        - $ref: '#/components/schemas/DriverImportError'
+        - properties:
+            note:
+              description: First name exceeds maximum length of 100 characters
+              example:
+                - "First Name cannot exceed 100 characters for Driver with index 0"
+                - "Imported 0 driver Successfully"
+
+    DriverLastNameTooLongError:
+      allOf:
+        - $ref: '#/components/schemas/DriverImportError'
+        - properties:
+            note:
+              description: Last name exceeds maximum length of 100 characters
+              example:
+                - "Last Name cannot exceed 100 characters for Driver with index 0"
+                - "Imported 0 driver Successfully"
+
+    DriverNotFoundError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: string
+          example: "Could not find any drivers. Please check your JSON file. The API expects: /drivers or /drivers//driver"
+        version:
+          type: string
+          example: "v123"
+
+    DriverParsingError:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            expose:
+              type: boolean
+              example: true
+            statusCode:
+              type: integer
+              example: 400
+            status:
+              type: integer
+              example: 400
+            body:
+              type: string
+              example: "{\r\n\t\"drivers\": {\r\n\t\t\n\t\t\n\t\t\n\t\t\n\"}"
+            type:
+              type: string
+              example: "entity.parse.failed"
+
+    DriverImageInvalidUrlError:
+      allOf:
+        - $ref: '#/components/schemas/DriverImportError'
+        - properties:
+            note:
+              example:
+                - "Invalid URL format for Driver with index 0"
+                - "Imported 0 driver Successfully"
+
+    DriverImageNotReachableError:
+      allOf:
+        - $ref: '#/components/schemas/DriverImportError'
+        - properties:
+            note:
+              description: |
+                Possible error messages:
+                - "Image not reachable for Driver with index N"
+              example:
+                - "Image not reachable for Driver with index 0"
+                - "Imported 0 driver Successfully"
+
+    DriverImageInvalidBase64Error:
+      allOf:
+        - $ref: '#/components/schemas/DriverImportError'
+        - properties:
+            note:
+              description: Returned when the Base64 string contains invalid characters or is malformed
+              example:
+                - "Invalid Base64 format for Driver with index 0"
+                - "Imported 0 driver Successfully"
+
+    DriverImageMissingContentTypeError:
+      allOf:
+        - $ref: '#/components/schemas/DriverImportError'
+        - properties:
+            note:
+              example:
+                - "Content-type is required for Base64 image data for Driver with index 0"
+                - "Imported 0 driver Successfully"
+
+    DriverImageSizeExceededError:
+      allOf:
+        - $ref: '#/components/schemas/DriverImportError'
+        - properties:
+            note:
+              example:
+                - "Image size exceeds 1MB limit. Maximum allowed image size: 1 MB for Driver with index 0"
+                - "Imported 0 driver Successfully"
+
+    DriverImageUnsupportedFormatError:
+      allOf:
+        - $ref: '#/components/schemas/DriverImportError'
+        - properties:
+            note:
+              example:
+                - "Unsupported image format (only JPG/JPEG/PNG/GIF allowed) for Driver with index 0"
+                - "Imported 0 driver Successfully"
+
+    DriverImageCorruptError:
+      allOf:
+        - $ref: '#/components/schemas/DriverImportError'
+        - properties:
+            note:
+              description: Returned when the image data is corrupted, truncated, or cannot be processed as a valid image
+              example:
+                - "Invalid or corrupt image data for Driver with index 0"
+                - "Imported 0 driver Successfully"
+
+    ImportWarehouseUser:
+      type: object
+      required: [warehouse_user_number, name, login, password, time_zone]
+      properties:
+        warehouse_user_number:
+          type: string
+          description: Unique identifier for the warehouse user. Can also be provided as 'number' field.
+          example: 'WU1001'
+        number:
+          type: string
+          description: Alternative field name for warehouse_user_number
+          example: 'WU1001'
+        name:
+          type: string
+          example: 'John Parker'
+        login:
+          type: string
+          description: Unique login identifier. Must not conflict with driver or service unit logins.
+          example: 'john.parker'
+        password:
+          type: string
+          description: Password must meet complexity requirements (minimum 8 characters, at least one uppercase, one lowercase, one number, and one special character).
+          example: 'P@ssW2024!'
+        description:
+          type: string
+          example: 'Night shift loader'
+        time_zone:
+          type: string
+          description: Time zone identifier (e.g., America/New_York, America/Chicago)
+          example: 'America/New_York'
+        status:
+          type: string
+          description: Status of the warehouse user. '1' for active, '0' for inactive.
+          example: '1'
+        enable_sso:
+          type: boolean
+          description: Enable Single Sign-On (SSO) for this warehouse user
+          example: false
+        account:
+          type: string
+          description: Single account name (optional, used when accounts are enabled)
+          example: 'Main DC'
+        accounts:
+          type: object
+          description: Multiple accounts association (optional, used when accounts are enabled)
+          properties:
+            account:
+              oneOf:
+                - type: array
+                  items:
+                    type: string
+                  example: ['Main DC', 'Overflow Storage']
+                - type: string
+                  example: 'Main DC'
+
+    AddWarehouseUserSuccess:
+      type: object
+      properties:
+        status:
+          type: string
+          example: 'success'
+        message:
+          type: string
+          example: '2 warehouse users processed'
+        success_count:
+          type: integer
+          example: 1
+        failure_count:
+          type: integer
+          example: 1
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              warehouse_user_number:
+                type: string
+                example: 'WU1001'
+              status:
+                type: string
+                example: 'success'
+              message:
+                type: string
+                example: 'Created'
+          example:
+            - warehouse_user_number: 'WU1001'
+              status: 'success'
+              message: 'Created'
+            - warehouse_user_number: 'WU1002'
+              status: 'failure'
+              message: 'Login already exists'
+
+    WarehouseUserImportError:
+      type: object
+      properties:
+        status:
+          type: string
+          example: 'failure'
+        message:
+          type: string
+          example: 'Some error message related to warehouse user import'
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              warehouse_user_number:
+                type: string
+              status:
+                type: string
+              message:
+                type: string
+
+    WarehouseUserNumberMissingError:
+      allOf:
+        - $ref: '#/components/schemas/WarehouseUserImportError'
+        - properties:
+            message:
+              type: string
+              example: 'Warehouse user number can not be blank for Warehouse User with index 0'
+            results:
+              type: array
+              items:
+                type: object
+                properties:
+                  warehouse_user_number:
+                    type: string
+                    example: ''
+                  status:
+                    type: string
+                    example: 'failure'
+                  message:
+                    type: string
+                    example: 'Warehouse user number can not be blank'
+
+    WarehouseUserNameMissingError:
+      allOf:
+        - $ref: '#/components/schemas/WarehouseUserImportError'
+        - properties:
+            message:
+              type: string
+              example: 'Name can not be blank for Warehouse User with index 0'
+            results:
+              type: array
+              items:
+                type: object
+                properties:
+                  warehouse_user_number:
+                    type: string
+                    example: 'WU1001'
+                  status:
+                    type: string
+                    example: 'failure'
+                  message:
+                    type: string
+                    example: 'Name can not be blank'
+
+    WarehouseUserLoginMissingError:
+      allOf:
+        - $ref: '#/components/schemas/WarehouseUserImportError'
+        - properties:
+            message:
+              type: string
+              example: 'Login can not be blank for Warehouse User with index 0'
+            results:
+              type: array
+              items:
+                type: object
+                properties:
+                  warehouse_user_number:
+                    type: string
+                    example: 'WU1001'
+                  status:
+                    type: string
+                    example: 'failure'
+                  message:
+                    type: string
+                    example: 'Login can not be blank'
+
+    WarehouseUserPasswordMissingError:
+      allOf:
+        - $ref: '#/components/schemas/WarehouseUserImportError'
+        - properties:
+            message:
+              type: string
+              example: 'Password can not be blank for Warehouse User with index 0'
+            results:
+              type: array
+              items:
+                type: object
+                properties:
+                  warehouse_user_number:
+                    type: string
+                    example: 'WU1001'
+                  status:
+                    type: string
+                    example: 'failure'
+                  message:
+                    type: string
+                    example: 'Password can not be blank'
+
+    WarehouseUserTimeZoneMissingError:
+      allOf:
+        - $ref: '#/components/schemas/WarehouseUserImportError'
+        - properties:
+            message:
+              type: string
+              example: 'Time zone can not be blank for Warehouse User with index 0'
+            results:
+              type: array
+              items:
+                type: object
+                properties:
+                  warehouse_user_number:
+                    type: string
+                    example: 'WU1001'
+                  status:
+                    type: string
+                    example: 'failure'
+                  message:
+                    type: string
+                    example: 'Time zone can not be blank'
+
+    WarehouseUserNotFoundError:
+      type: object
+      properties:
+        status:
+          type: string
+          example: 'failure'
+        message:
+          type: string
+          example: 'Could not find any warehouse users. Please check your JSON file. The API expects: /warehouse_users or /warehouse_users/warehouse_user'
+
+    WarehouseUserParsingError:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            expose:
+              type: boolean
+              example: true
+            statusCode:
+              type: integer
+              example: 400
+            status:
+              type: integer
+              example: 400
+            body:
+              type: string
+              example: "{\r\n\t\"warehouse_users\": {\r\n\t\t\n\t\t\n\t\t\n\t\t\n\"}"
+            type:
+              type: string
+              example: "entity.parse.failed"
+
+    ImportClient:
+      type: object
+      required: [name, code]
+      properties:
+        name:
+          type: string
+          example: 'Client A'
+        code:
+          type: string
+          example: 'CL001'
+        contact:
+          type: string
+          example: 'John Doe'
+        email:
+          type: string
+          example: 'john@example.com'
+        address:
+          type: string
+          example: '123 Main St'
+        status:
+          type: string
+          enum: ['Active', 'Inactive']
+          example: 'Active'
+        profile_pic_url:
+          type: string
+          example: 'https://example.com/profile.jpg'
+
+    AddClientSuccess:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        note:
+          type: string
+          example: 'Imported 2 clients Successfully'
+        version:
+          type: string
+          example: 'v123'
+
+    ClientImportError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: string
+          example: "Some error message related to client import"
+        version:
+          type: string
+          example: "v master_r7_20.25.02.4823 [9d3e08c]"
+
+    ClientNameMissingError:
+      allOf:
+        - $ref: '#/components/schemas/ClientImportError'
+        - properties:
+            note:
+              type: string
+              example: "Name can't be blank for the client with code 'CL001'"
+
+    ClientCodeMissingError:
+      allOf:
+        - $ref: '#/components/schemas/ClientImportError'
+        - properties:
+            note:
+              type: string
+              example: "Code can't be blank for the client with name 'Client A'"
+
+    ClientCodeDuplicateError:
+      allOf:
+        - $ref: '#/components/schemas/ClientImportError'
+        - properties:
+            note:
+              type: string
+              example: "Client already exists for the given code 'CL001'"
+
+    ClientNameAndCodeBlankError:
+      allOf:
+        - $ref: '#/components/schemas/ClientImportError'
+        - properties:
+            note:
+              type: string
+              example: "Name and Code can't be blank"
+
+    ClientEmailInvalidError:
+      allOf:
+        - $ref: '#/components/schemas/ClientImportError'
+        - properties:
+            note:
+              type: string
+              example: "Email is invalid for the client with code 'CL001'"
+
+    ClientParsingError:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            expose:
+              type: boolean
+              example: true
+            statusCode:
+              type: integer
+              example: 400
+            status:
+              type: integer
+              example: 400
+            body:
+              type: string
+              example: "{\r\n\t\"clients\": [\r\n\t\t\n\t\t\n\t\t\n\t\t\n\"}"
+            type:
+              type: string
+              example: "entity.parse.failed"
+
+    ExportClientSuccess:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        note:
+          type: string
+          example: 'Export Clients Successful'
+        clients:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                example: 'Client A'
+              code:
+                type: string
+                example: 'CL001'
+              contact:
+                type: string
+                nullable: true
+                example: 'John Doe'
+              email:
+                type: string
+                nullable: true
+                example: 'john@example.com'
+              address:
+                type: string
+                nullable: true
+                example: '123 Main St'
+              status:
+                type: string
+                example: 'Active'
+        count:
+          type: integer
+          example: 3
+        version:
+          type: string
+          example: 'v staging.application_revision'
+
+    ImportAccount:
+      type: object
+      required: [account_name]
+      properties:
+        account_name:
+          type: string
+          example: 'Account A'
+          description: 'Required. Account name must be unique.'
+        account_alias:
+          type: string
+          example: 'ACC001'
+          description: 'Account alias must be unique if provided.'
+        address_line1:
+          type: string
+          example: '123 Main St'
+        city:
+          type: string
+          example: 'New York'
+        zip:
+          type: string
+          example: '10001'
+        state:
+          type: string
+          example: 'NY'
+        address_line2:
+          type: string
+          example: 'Suite 100'
+        email:
+          type: string
+          example: 'account@example.com'
+          description: 'Must be a valid email format if provided.'
+        main_contact:
+          type: string
+          example: 'John Doe'
+        callback_phone:
+          type: string
+          example: '555-1234'
+        caller_id:
+          type: string
+          example: '555-5678'
+        fax:
+          type: string
+          example: '555-9999'
+        alert_email:
+          type: string
+          example: 'alerts@example.com'
+        timezone:
+          type: string
+          example: 'America/New_York'
+        window_time:
+          type: string
+          example: '30'
+        time_window_duration:
+          type: integer
+          example: 30
+        active:
+          type: boolean
+          example: true
+        import_load_enabled:
+          type: boolean
+          example: false
+        import_hit_frequency_per_hour:
+          type: integer
+          example: 1000
+        export_load_enabled:
+          type: boolean
+          example: false
+        export_hit_frequency_per_hour:
+          type: integer
+          example: 40
+        export_frequency:
+          type: string
+          example: 'daily'
+        airkey:
+          type: string
+          example: 'key123'
+        account_logo_url:
+          type: string
+          example: 'https://example.com/logo.jpg'
+        text_message_logo_url:
+          type: string
+          example: 'https://example.com/text-logo.jpg'
+        notification_from_address:
+          type: string
+          example: 'notifications@example.com'
+          description: 'Must be a valid email format if provided.'
+        start_time:
+          type: string
+          example: '08:00 AM'
+          description: 'Start time for account operations. Required if end_time is provided.'
+        end_time:
+          type: string
+          example: '06:00 PM'
+          description: 'End time for account operations. Required if start_time is provided.'
+
+    AddAccountSuccess:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        note:
+          type: string
+          example: 'Imported 2 accounts Successfully'
+        version:
+          type: string
+          example: 'v123'
+
+    AccountImportError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: string
+          example: "Some error message related to account import"
+        version:
+          type: string
+          example: "v master_r7_20.25.02.4823 [9d3e08c]"
+
+    AccountNameMissingError:
+      allOf:
+        - $ref: '#/components/schemas/AccountImportError'
+        - properties:
+            note:
+              type: string
+              example: "Name can't be blank"
+
+    AccountAliasMissingError:
+      allOf:
+        - $ref: '#/components/schemas/AccountImportError'
+        - properties:
+            note:
+              type: string
+              example: "Account alias can not be blank for Account with index 0"
+
+    AccountAliasDuplicateError:
+      allOf:
+        - $ref: '#/components/schemas/AccountImportError'
+        - properties:
+            note:
+              type: string
+              example: "Account alias 'ACC001' already exists for account 'Account A'"
+
+    AccountParsingError:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            expose:
+              type: boolean
+              example: true
+            statusCode:
+              type: integer
+              example: 400
+            status:
+              type: integer
+              example: 400
+            body:
+              type: string
+              example: "{\r\n\t\"accounts\": [\r\n\t\t\n\t\t\n\t\t\n\t\t\n\"}"
+            type:
+              type: string
+              example: "entity.parse.failed"
+
+    AccountNameBlankError:
+      allOf:
+        - $ref: '#/components/schemas/AccountImportError'
+        - properties:
+            note:
+              type: string
+              example: "Name can't be blank for the account with alias 'ACC001'"
+
+    AccountEmailInvalidError:
+      allOf:
+        - $ref: '#/components/schemas/AccountImportError'
+        - properties:
+            note:
+              type: string
+              example: "Email is invalid for the account with name 'Account A'"
+
+    AccountNotificationFromAddressInvalidError:
+      allOf:
+        - $ref: '#/components/schemas/AccountImportError'
+        - properties:
+            note:
+              type: string
+              example: "Notification from address is invalid for the account with name 'Account A'"
+
+    AccountStartTimeMissingError:
+      allOf:
+        - $ref: '#/components/schemas/AccountImportError'
+        - properties:
+            note:
+              type: string
+              example: "Start Time is mandatory for the account with name 'Account A'"
+
+    AccountEndTimeMissingError:
+      allOf:
+        - $ref: '#/components/schemas/AccountImportError'
+        - properties:
+            note:
+              type: string
+              example: "End Time is mandatory for the account with name 'Account A'"
+
+    AccountAlreadyExistsError:
+      allOf:
+        - $ref: '#/components/schemas/AccountImportError'
+        - properties:
+            note:
+              type: string
+              example: "Account with name 'Account A' already exists"
+
+    ExportAccountSuccess:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        note:
+          type: string
+          example: 'Export Accounts Successful'
+        accounts:
+          type: array
+          items:
+            type: object
+            properties:
+              account_name:
+                type: string
+                example: 'Account A'
+              account_alias:
+                type: string
+                example: 'ACC001'
+              address_line1:
+                type: string
+                example: '123 Main St'
+              address_line2:
+                type: string
+                nullable: true
+                example: 'Suite 100'
+              city:
+                type: string
+                example: 'New York'
+              state:
+                type: string
+                nullable: true
+                example: 'NY'
+              zip:
+                type: string
+                example: '10001'
+              email:
+                type: string
+                nullable: true
+                example: 'account@example.com'
+              main_contact:
+                type: string
+                nullable: true
+                example: 'John Doe'
+        count:
+          type: integer
+          example: 3
+        version:
+          type: string
+          example: 'v staging.application_revision'
+
+    ImportRouteLocation:
+      type: object
+      required: [label, location_number, address_line1, city, zip]
+      properties:
+        label:
+          type: string
+          example: 'Location A'
+          description: 'Required. Label for the route location.'
+        location_number:
+          type: string
+          example: 'LOC001'
+          description: 'Required. Unique location number identifier.'
+        address_line1:
+          type: string
+          example: '123 Main Street'
+          description: 'Required. Primary address line.'
+        address_line2:
+          type: string
+          example: 'Suite 100'
+        city:
+          type: string
+          example: 'New York'
+          description: 'Required. City name.'
+        state:
+          type: string
+          example: 'NY'
+        zip:
+          type: string
+          example: '10001'
+          description: 'Required. Zip/Postal code.'
+        show_on_routing_map:
+          type: string
+          example: 'Yes'
+        accounts:
+          type: array
+          items:
+            type: string
+          example: ['Account A', 'Account B']
+          description: 'Required when account feature is enabled. List of account names to associate with this location.'
+
+    AddRouteLocationSuccess:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        note:
+          type: string
+          example: 'Imported 2 route locations Successfully'
+        version:
+          type: string
+          example: 'v123'
+
+    RouteLocationLabelBlankError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: array
+          items:
+            type: string
+          example:
+            - "Label can't be blank for the location with location_number 'LOC001'"
+            - "Imported 0 route locations Successfully"
+        version:
+          type: string
+          example: "v master_r7_20.25.02.4823 [9d3e08c]"
+
+    RouteLocationNumberBlankError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: array
+          items:
+            type: string
+          example:
+            - "Location number can't be blank for the location with label 'Location A'"
+            - "Imported 0 route locations Successfully"
+        version:
+          type: string
+          example: "v master_r7_20.25.02.4823 [9d3e08c]"
+
+    RouteLocationAddressBlankError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: array
+          items:
+            type: string
+          example:
+            - "Address Line 1 can't be blank for the location with location_number 'LOC001'"
+            - "Imported 0 route locations Successfully"
+        version:
+          type: string
+          example: "v master_r7_20.25.02.4823 [9d3e08c]"
+
+    RouteLocationCityBlankError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: array
+          items:
+            type: string
+          example:
+            - "City can't be blank for the location with location_number 'LOC001'"
+            - "Imported 0 route locations Successfully"
+        version:
+          type: string
+          example: "v master_r7_20.25.02.4823 [9d3e08c]"
+
+    RouteLocationZipBlankError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: array
+          items:
+            type: string
+          example:
+            - "Zip can't be blank for the location with location_number 'LOC001'"
+            - "Imported 0 route locations Successfully"
+        version:
+          type: string
+          example: "v master_r7_20.25.02.4823 [9d3e08c]"
+
+    RouteLocationAccountsBlankError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: array
+          items:
+            type: string
+          example:
+            - "Accounts can't be blank for the location with location_number 'LOC001'"
+            - "Imported 0 route locations Successfully"
+        version:
+          type: string
+          example: "v master_r7_20.25.02.4823 [9d3e08c]"
+
+    RouteLocationAccountsNotFoundError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: array
+          items:
+            type: string
+          example:
+            - "Account(s) 'Invalid Account' not found for the location with location_number 'LOC001'"
+            - "Imported 0 route locations Successfully"
+        version:
+          type: string
+          example: "v master_r7_20.25.02.4823 [9d3e08c]"
+
+    RouteLocationAccountsInactiveError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: array
+          items:
+            type: string
+          example:
+            - "Account(s) 'Inactive Account' is inactive for the location with location_number 'LOC001', failed to import"
+            - "Imported 0 route locations Successfully"
+        version:
+          type: string
+          example: "v master_r7_20.25.02.4823 [9d3e08c]"
+
+    RouteLocationAlreadyExistsError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: array
+          items:
+            type: string
+          example:
+            - "Location with location_number 'LOC001' already exists"
+            - "Imported 0 route locations Successfully"
+        version:
+          type: string
+          example: "v master_r7_20.25.02.4823 [9d3e08c]"
+
+    RouteLocationNumberDuplicateError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: array
+          items:
+            type: string
+          example:
+            - "Location number 'LOC001' already exists"
+            - "Imported 0 route locations Successfully"
+        version:
+          type: string
+          example: "v master_r7_20.25.02.4823 [9d3e08c]"
+
+    RouteLocationParsingError:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            expose:
+              type: boolean
+              example: true
+            statusCode:
+              type: integer
+              example: 400
+            status:
+              type: integer
+              example: 400
+            body:
+              type: string
+              example: "{\r\n\t\"route_locations\": [\r\n\t\t\n\t\t\n\t\t\n\t\t\n\"}"
+            type:
+              type: string
+              example: "entity.parse.failed"
+
+    ExportRouteLocationSuccess:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        note:
+          type: string
+          example: 'Export Route Locations Successful'
+        route_locations:
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+                example: 'Location A'
+              location_number:
+                type: string
+                example: 'LOC001'
+              address_line1:
+                type: string
+                example: '123 Main Street'
+              address_line2:
+                type: string
+                nullable: true
+                example: 'Suite 100'
+              city:
+                type: string
+                example: 'New York'
+              state:
+                type: string
+                nullable: true
+                example: 'NY'
+              zip:
+                type: string
+                example: '10001'
+              show_on_routing_map:
+                type: string
+                example: 'No'
+              accounts:
+                type: array
+                items:
+                  type: string
+                example: ['Account One', 'Account Two']
+        count:
+          type: integer
+          example: 6
+        version:
+          type: string
+          example: 'v staging.application_revision'
+
+    ImportUser:
+      type: object
+      required: [name, email, password, confirm_password]
+      properties:
+        name:
+          type: string
+          example: 'ScpexAd2'
+        email:
+          type: string
+          example: 'test@dispatchtrack.com'
+        password:
+          type: string
+          example: 'Password@123'
+        confirm_password:
+          type: string
+          example: 'Password@123'
+        status:
+          type: integer
+          example: 1
+        role:
+          type: string
+          example: 'Customer Support'
+        language:
+          type: string
+          example: 'English'
+        enable_mobile_access:
+          type: boolean
+          example: true
+        enable_billing_code_edit:
+          type: boolean
+          example: true
+        enable_order_edit:
+          type: boolean
+          example: true
+        enable_call_status_in_notification_screen:
+          type: boolean
+          example: true
+        enable_warehouse_user_create:
+          type: boolean
+          description: |
+            Permission for Manager Role to Create Warehouse Users.
+
+            Controls whether a Manager user can create, import, export, and manage warehouse users.
+          example: false
+          default: true
+        enable_delivery_receipt:
+          type: boolean
+          description: |
+            Access Delivery Receipt permission for Client User role only.
+
+            When set to true, allows the Client User to view delivery receipts.
+            Ignored for all other roles.
+          example: false
+          default: false
+        link_all_accounts:
+          type: boolean
+          example: false
+        accounts:
+          type: object
+          properties:
+            account:
+              type: array
+              items:
+                type: string
+              example: ['Account 1', 'Account 2']
+        default_account:
+          type: string
+          example: 'Account 1'
+
+    AddUserSuccess:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        note:
+          type: string
+          example: ['User Added Successfully']
+        version:
+          type: string
+          example: 'v123'
+
+    ValidationError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        note:
+          type: string
+        version:
+          type: string
+          example: "v123"
+
+    NameBlankError:
+      allOf:
+        - $ref: '#/components/schemas/ValidationError'
+        - properties:
+            note:
+              type: string
+              example: "Name can not be blank"
+
+    EmailBlankError:
+      allOf:
+        - $ref: '#/components/schemas/ValidationError'
+        - properties:
+            note:
+              type: string
+              example: "Email can not be blank"
+
+    PasswordBlankError:
+      allOf:
+        - $ref: '#/components/schemas/ValidationError'
+        - properties:
+            note:
+              type: string
+              example: "Password can not be blank"
+
+    ConfirmPasswordBlankError:
+      allOf:
+        - $ref: '#/components/schemas/ValidationError'
+        - properties:
+            note:
+              type: string
+              example: "Confirm Password can not be blank"
+
+    PasswordMismatchError:
+      allOf:
+        - $ref: '#/components/schemas/ValidationError'
+        - properties:
+            note:
+              type: string
+              example: "Doesn't match Password confirmation"
+
+    RoleBlankError:
+      allOf:
+        - $ref: '#/components/schemas/ValidationError'
+        - properties:
+            note:
+              type: string
+              example: "Role can not be blank"
+
+    AddUserError:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            expose:
+              type: boolean
+              example: true
+            statusCode:
+              type: integer
+              example: 400
+            status:
+              type: integer
+              example: 400
+            body:
+              type: string
+              example: "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+            type:
+              type: string
+              example: "entity.parse.failed"
+
+    UserNotFoundError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: string
+          example: "Could not find any users. Please check your JSON file. The API expects: /users or /users//user"
+        version:
+          type: string
+          example: "v123"
+
+    MessagingSuccess:
+      type: object
+      properties:
+        status:
+          type: string
+          example: 'SUCCESS'
+        version:
+          type: string
+          example: "v123"
+
+    MessagingBadRequestError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: 'No active route for this service unit/driver'
+        version:
+          type: string
+          example: "v123"
+
+    NoServiceUnitError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: "No Service Unit was sent in JSON"
+        version:
+          type: string
+          example: "v123"
+
+    NoMessageError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: "No message was sent in JSON"
+        version:
+          type: string
+          example: "v123"
+
+    UnauthorizedError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 401
+        error:
+          type: string
+          example: 'Valid API Key and API Code are required'
+
+    UnauthorizedAccessError:
+      type: object
+      properties:
+        error:
+          type: string
+          example: 'Unauthorized access. Please contact Support.'
+        status:
+          type: integer
+          example: 403
+        version:
+          type: string
+          example: 'v123'
+
+    StatusUnauthorizedAccessError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        status:
+          type: integer
+          example: 403
+        note:
+          type: string
+          example: "Unauthorized access. Please contact Support."
+        version:
+          type: string
+          example: "v123"
+
+
+    UnauthorizedAccessWithError:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        status:
+          type: integer
+          example: 401
+        error:
+          type: string
+          example: 'Unauthorized access'
+
+    UnauthorizedAccessWithNote:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        status:
+          type: integer
+          example: 401
+        note:
+          type: string
+          example: 'Unauthorized access'
+
+    TruckImportRequest:
+      type: object
+      properties:
+        truck:
+          $ref: '#/components/schemas/Truck'
+
+    Truck:
+      type: object
+      properties:
+        truck_name:
+          type: string
+          example: TRUCK758
+          description: The name of the truck.
+        truck_number:
+          type: string
+          example: TRUCK758
+          description: Unique identifier for the truck.
+        license_number:
+          type: string
+          example: G74F20E145D78
+          description: License number of the truck.
+        vin_number:
+          type: string
+          example: 1C4RJFCT6CC111961
+          description: Vehicle Identification Number (VIN).
+        gross_vehicle_weight_rating:
+          type: integer
+          example: 40
+          description: The gross vehicle weight rating (GVWR) in tons.
+        maximum_weight:
+          type: integer
+          example: 50
+          description: Maximum weight the truck can carry (in tons).
+        maximum_volume:
+          type: integer
+          example: 60
+          description: Maximum volume the truck can carry (in cubic meters).
+        equipment_type:
+          type: integer
+          example: 68
+          description: Identifier for the type of equipment.
+        device_number:
+          type: string
+          example: G74F2sdfg0E145D78
+          description: The device number associated with the truck.
+        device_type:
+          type: string
+          example: geotab
+          description: The type of tracking device installed on the truck.
+        speed_threshold:
+          type: integer
+          example: 75
+          description: Speed threshold for alerts (in miles per hour).
+        time_zone:
+          type: string
+          example: Eastern Time (US & Canada)
+          description: The time zone in which the truck operates.
+      required:
+        - truck_name
+        - truck_number
+        - license_number
+
+    TruckAPIUnauthorizedAccess:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 401
+        success:
+          type: boolean
+          example: false
+        note:
+          type: string
+          example: 'Unauthorized access'
+
+    TruckAPIBadRequestError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        success:
+          type: boolean
+          example: false
+        note:
+          type: string
+          example: 'Unauthorized access'
+
+    DeviceNumberError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        error_msg:
+          type: array
+          items:
+            type: string
+          example:
+            - "Device number has been associated with another truck"
+
+    ServiceUnitNotFoundError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 404
+        error:
+          type: string
+          example: 'Service Unit/Driver not found'
+        version:
+          type: string
+          example: "v123"
+
+    NotAcceptableError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 406
+        error:
+          type: string
+          example: 'HTTP 406: Not acceptable'
+
+    NotAcceptableErrorWithVersion:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 406
+        error:
+          type: string
+          example: 'HTTP 406: Not acceptable'
+        version:
+          type: string
+          example: "v123"
+
+    Status:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        status:
+          type: integer
+          example: 200
+        note:
+          type: string
+          example: 'Service Orders'
+        version:
+          type: string
+          example: 'v123'
+        service_orders:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                example: '100001'
+              order_number:
+                type: string
+                example: '100001'
+              status:
+                type: string
+                example: 'Finished'
+              shipmentId:
+                type: string
+                nullable: true
+                example: null
+              beginTimeFrame:
+                type: string
+                format: date-time
+                nullable: true
+                example: null
+              endingTimeFrame:
+                type: string
+                format: date-time
+                nullable: true
+                example: null
+              plannedServiceTime:
+                type: integer
+                example: 20
+              longitude:
+                type: number
+                format: float
+                example: 18.57542
+              latitude:
+                type: number
+                format: float
+                example: 73.76491
+              actualDriveTime:
+                type: integer
+                nullable: true
+                example: null
+              gPSArrivalTime:
+                type: string
+                format: date-time
+                nullable: true
+                example: null
+              gPSServiceTime:
+                type: integer
+                example: 0
+              onTime:
+                type: string
+                example: 'N/A'
+              calculatedDistance:
+                type: number
+                format: float
+                nullable: true
+                example: null
+              gPSDistance:
+                type: integer
+                example: 0
+              service_unit:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    example: 'SU1'
+                  login:
+                    type: string
+                    example: 'SU1'
+              routeTag:
+                type: string
+                example: ""
+              actualServiceTime:
+                type: integer
+                nullable: true
+                example: null
+        count:
+          type: integer
+          example: 1
+
+    StatusNotAcceptableInvalidEmail:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 406
+        error:
+          type: string
+          example: 'Invalid email format'
+        version:
+          type: string
+          example: 'v123'
+
+    StatusNotAcceptableInvalidDate:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 406
+        error:
+          type: string
+          example: 'Valid Date or Date Range is required'
+        version:
+          type: string
+          example: 'v123'
+
+    SchedulingSuccess:
+      type: object
+      properties:
+        url:
+          type: string
+          example: 'https://dtdev.dispatchtrack.com/schedule/delivery/rails7/0da9ifs1p18a31661'
+        success:
+          type: boolean
+          example: true
+        status:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: 'ok'
+
+    SchedulingFailed:
+      type: object
+      properties:
+        url:
+          type: string
+          example: null
+        success:
+          type: boolean
+          example: true
+        status:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: 'Cannot be scheduled'
+
+    ErrorResponse:
+      type: object
+      xml:
+        name: error
+      properties:
+        error:
+          type: string
+          example: "Valid API Key and API Code is required."
+
+    TruckSuccessResponse1:
+      type: object
+      properties:
+        internal_id:
+          type: string
+          example: "Z2F5YXRocmliMmMtNj667Mg==\n"
+        success_msg:
+          type: string
+          example: "TRUCK758 Uploaded successfully"
+        status:
+          type: integer
+          example: 200
+        error_msg:
+          type: array
+          items:
+            type: string
+          example: []
+
+    TruckSuccessResponse2:
+      type: object
+      properties:
+        internal_id:
+          type: string
+          example: "Z2F5YXRocmliMmMtNj667Mg==\n"
+        status:
+          type: integer
+          example: 200
+        error_msg:
+          type: array
+          items:
+            type: string
+          example: []
+        success_msg:
+          type: string
+          example: "TRUCK758 Uploaded successfully"
+
+    UnauthorizedInvalidToken:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          example: 401
+        status:
+          type: integer
+          example: 401
+        code:
+          type: integer
+          example: 401
+        message:
+          type: string
+          example: "Invalid token: access token is invalid"
+        name:
+          type: string
+          example: "invalid_token"
+
+    UnauthorizedExpiredToken:
+      type: object
+      example:
+        statusCode: 401
+        status: 401
+        code: 401
+        message: 'Invalid token: access token has expired'
+        name: invalid_token
+      properties:
+        statusCode:
+          type: integer
+          example: 401
+        status:
+          type: integer
+          example: 401
+        code:
+          type: integer
+          example: 401
+        message:
+          type: string
+          example: 'Invalid token: access token has expired'
+        name:
+          type: string
+          example: invalid_token
+
+    UnauthorizedRoutesClientVendorMapping:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        note:
+          type: string
+          example: Client Vendor Mapping not present
+        status:
+          type: integer
+          example: 401
+
+    RoutesVendorUploadRequest:
+      type: object
+      description: >
+        **Vendor identity:** Use either `code` **or** `vendor_name` to identify the vendor
+      required:
+        - routes
+      properties:
+        code:
+          type: string
+          description: Vendor identifier. Optional if `vendor_name` is provided.
+          example: rsvendor
+        vendor_name:
+          type: string
+          description: Vendor identifier. Optional if `code` is provided.
+          example: rvendor
+        routes:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoutesVendorRouteItem'
+
+    RoutesVendorRouteItem:
+      type: object
+      required:
+        - route_number
+        - scheduled_date
+        - stops
+      properties:
+        route_number:
+          type: string
+          description: Required. Route identifier.
+        scheduled_date:
+          type: string
+          format: date
+          description: Required. Schedule date (YYYY-MM-DD).
+        route_name:
+          type: string
+        route_tag:
+          type: string
+        truck_number:
+          type: string
+        driver_names:
+          type: string
+          description: Comma-separated driver names when multiple.
+        driver_numbers:
+          type: string
+          description: Comma-separated driver numbers when multiple.
+        account_name:
+          type: string
+        stops:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoutesVendorStopItem'
+
+    RoutesVendorStopItem:
+      type: object
+      properties:
+        stop_number:
+          type: integer
+        order_number:
+          type: string
+        status:
+          type: string
+          example: Scheduled
+        scheduled_start:
+          type: string
+        scheduled_end:
+          type: string
+        scheduled_window_start:
+          type: string
+        scheduled_window_end:
+          type: string
+
+    RoutesUploadSuccessResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        success:
+          type: boolean
+          example: true
+        success_count:
+          type: integer
+          example: 1
+        failed_count:
+          type: integer
+        failed_routes:
+          type: array
+        success_routes:
+          type: array
+          items:
+            type: string
+            example: "1 Uploaded Schedules for 17738146361896620561_DTDRSCLIENT successfully"
+        version:
+          type: string
+          example: 'v 2026.01.03.7739fd4'
+
+    ApiRequiredParametersMissingResponse:
+      type: object
+      description: >
+        Returned when required fields are missing (e.g. neither `code` nor `vendor_name`, or missing `routes`).
+        Despite HTTP 400, the API may return `success: true`.
+      example:
+        status: 400
+        note: Required parameters are missing
+        success: true
+      properties:
+        status:
+          type: integer
+          example: 400
+        note:
+          type: string
+          example: Required parameters are missing
+        success:
+          type: boolean
+          example: true
+
+    RoutesUploadValidationErrorResponse:
+      type: object
+      description: HTTP 200 with business validation or processing failures.
+      properties:
+        status:
+          type: integer
+          example: 200
+        success:
+          type: boolean
+          example: false
+        success_count:
+          type: integer
+        failed_count:
+          type: integer
+          example: 1
+        failed_routes:
+          type: array
+          items:
+            type: string
+          example:
+            - '1 Route Number or Schedule Date Parameters are not present'
+        success_routes:
+          type: array
+        version:
+          type: string
+
+    TruckImportAPIUnauthorizedExpiredToken:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          example: 401
+        status:
+          type: integer
+          example: 401
+        code:
+          type: integer
+          example: 401
+        message:
+          type: string
+          example: "Invalid token: access token has expired"
+        name:
+          type: string
+          example: "invalid_token"
+
+    MissingTruckNameError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        error_msg:
+          type: array
+          items:
+            type: string
+          example:
+            - "Truck name Can't be blank"
+
+    MissingTruckNumberError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        error_msg:
+          type: array
+          items:
+            type: string
+          example:
+            - "Truck number Can't be blank"
+
+    MissingLicenseNumberError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        error_msg:
+          type: array
+          items:
+            type: string
+          example:
+            - "License number Can't be blank"
+
+    MultipleFieldsMissingError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        error_msg:
+          type: array
+          items:
+            type: string
+          example:
+            - "Truck name Can't be blank"
+            - "License number Can't be blank"
+            - "Truck number Can't be blank"
+
+    MissingParametersResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        success:
+          type: boolean
+          example: false
+        note:
+          type: string
+          example: "Required parameters missing"
+
+    NotifySuccess:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        success:
+          type: string
+          example: "Triggered customer alert"
+        version:
+          type: string
+          example: "v123"
+    
+    OrderUpdateSuccessResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        success:
+          type: boolean
+          example: true
+        note:
+          type: string
+          example: "Order status updated to Ready for Pickup"
+
+    OrderNotFoundError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        success:
+          type: boolean
+          example: false
+        note:
+          type: string
+          example: "Order with order number 100001 not found"
+
+    CustomerPickupNotEnabledError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        success:
+          type: boolean
+          example: false
+        note:
+          type: string
+          example: "Customer Pickup is not enabled for this business"
+    
+    OrderNotInScheduledStatusError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        success:
+          type: boolean
+          example: false
+        note:
+          type: string
+          example: "Order status update failed for order number 100001, as order was not in a 'Scheduled' status"
+    
+    UnsupportedServiceTypeError:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        success:
+          type: boolean
+          example: false
+        note:
+          type: string
+          example: "Order status update failed for order number 100001 failed, unsupported service type"
+
+    ReservationChoicesSuccess:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Success'
+        reservation_choices:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                example: '2024-08-03'
+              time_window:
+                type: string
+                example: '09:00 AM to 11:00 AM'
+              rule_name:
+                type: string
+                example: 'Morning Window'
+              time_window_id:
+                type: string
+                description: Base64 encoded time window identifier
+                example: 'eyJyZXF1ZXN0X2RhdGUiOiIyMDI0LTA4LTAzIn0='
+              time_window_start:
+                type: string
+                example: '09:00'
+              time_window_end:
+                type: string
+                example: '11:00'
+              capacity_filled_percentage:
+                type: number
+                format: float
+                description: >
+                  Returned only when ignore_capacity=true. Represents how full the slot is, rounded to 2 decimals
+                  using the same utilization semantics as capacity availability reports.
+                example: 82.0
+        can_display_more:
+          type: boolean
+          example: true
+        reservation_number:
+          type: string
+          example: '1234567890'
+        address_resolution:
+          type: string
+          example: 'Address Resolved'
+          description: Only present if send_address_resolution is true
+
+    CreateReservationRequest:
+      type: object
+      required:
+        - time_window_id
+      properties:
+        code:
+          type: string
+          description: Business code (alternative to code from headers)
+        api_key:
+          type: string
+          description: API key (alternative to api-key from headers)
+        reservation_number:
+          type: string
+          description: Reservation number (required if order_number not provided)
+          example: '1234567890'
+        order_number:
+          type: string
+          description: Order number (required if reservation_number not provided)
+          example: '100001'
+        time_window_id:
+          type: string
+          description: Base64 encoded time window ID from reservation_choices
+          example: 'eyJyZXF1ZXN0X2RhdGUiOiIyMDI0LTA4LTAzIn0='
+        customer_name:
+          type: string
+          example: 'John Doe'
+        customer_email:
+          type: string
+          example: 'john@example.com'
+        customer_phone:
+          type: string
+          example: '+11234567890'
+        address_line1:
+          type: string
+          example: '1156 high street'
+        address_line2:
+          type: string
+          example: 'Suite 100'
+        city:
+          type: string
+          example: 'Santa Cruz'
+        state:
+          type: string
+          example: 'CA'
+        zip:
+          type: string
+          example: '95064'
+        account:
+          type: string
+          example: 'Acc1'
+        service_time:
+          type: integer
+          example: 30
+        skill_level:
+          type: integer
+          example: 1
+        pieces:
+          type: integer
+          example: 5
+        cubes:
+          type: number
+          format: float
+          example: 100.5
+        override:
+          type: string
+          description: >
+            Whether to override capacity constraints (true/false).
+            When true, commit reservation is allowed even if the selected slot is currently at 100% capacity.
+          enum: ['true', 'false']
+          example: 'false'
+        additional_fields:
+          type: object
+          description: Additional custom fields for the reservation
+          additionalProperties:
+            type: string
+          example:
+            store_code: 'STORE001'
+            sales_person_email: 'sales@example.com'
+
+    CreateReservationSuccess:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Reservation Ticket created with time window - 08/03/2024 - 09:00 AM to 11:00 AM'
+        reservation_number:
+          type: string
+          example: '1234567890'
+        warning:
+          type: string
+          description: >
+            Optional warning message indicating which additional field keys were skipped
+            because they are not configured for the business in Admin > Additional Fields > Reservations Tab.
+            This field is only present when unconfigured additional field keys are detected in the request.
+          example: 'Additional fields custom_field1,custom_field2 have been skipped as they are not configured for your business'
+
+    UpdateReservationRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Business code (alternative to code from headers)
+        api_key:
+          type: string
+          description: API key (alternative to api-key from headers)
+        additional_fields:
+          type: object
+          description: Additional custom fields to update
+          additionalProperties:
+            type: string
+          example:
+            store_code: 'STORE001'
+            sales_person_email: 'sales@example.com'
+
+    UpdateReservationSuccess:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Reservation Ticket updated with additional fields'
+        reservation_number:
+          type: string
+          example: '1234567890'
+        warning:
+          type: string
+          description: >
+            Optional warning message indicating which additional field keys were skipped
+            because they are not configured for the business in Admin > Additional Fields > Reservations Tab.
+            This field is only present when unconfigured additional field keys are detected in the request.
+          example: 'Additional fields custom_field1,custom_field2 have been skipped as they are not configured for your business'
+
+    ReleaseReservationRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Business code (alternative to Code header)
+        api_key:
+          type: string
+          description: API key (alternative to Api-Key header)
+        reservation_number:
+          type: string
+          description: Reservation number (required if order_number not provided)
+          example: '1234567890'
+        order_number:
+          type: string
+          description: Order number (required if reservation_number not provided)
+          example: '100001'
+        unschedule:
+          type: string
+          description: >
+            Whether to unschedule the associated order if it is in Scheduled status.
+            When true, the order will be unscheduled and its status reset to Ready to Reschedule.
+          enum: ['true', 'false']
+          example: 'true'
+
+    ReleaseReservationSuccess:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Reservation capacity has been released'
+        reservation_number:
+          type: string
+          description: Comma-separated reservation numbers that were released
+          example: '1234567890'
+        order_number:
+          type: string
+          description: Comma-separated order numbers associated with the released reservations
+          example: '100001'
+
+    MissingMandatoryFieldsError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Missing mandatory fields zip'
+          description: Lists all missing mandatory fields
+
+    InvalidCubesError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Cubes should be greater than 0'
+
+    InvalidAccountError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Invalid Account'
+
+    InvalidServiceTypeError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Invalid Service Type'
+
+    InvalidReadyToScheduleDateError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Invalid date format for ready to schedule date.'
+
+    ReservationNotEligibleError:
+      type: object
+      properties:
+        message:
+          type: string
+          description: >
+            Reservation is not eligible for reservation choices. The suffix after "as" varies by reason.
+            Possible reason patterns include:
+            - associated order's status is <status>
+            - order with route status as <Locked|Started|Finished> is not eligible for rescheduling
+            - rescheduling is not enabled for business
+            - rescheduling time limit reached
+          example: 'Reservation number is not eligible for reservation choices as associated order status is Finished'
+        reservation_number:
+          type: string
+          example: '1234567890'
+
+    ResourcesExceedingMaxLimitError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Number of resources exceeding max limit'
+        reservation_number:
+          type: string
+          example: '1234567890'
+
+    InvalidTimeWindowError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Invalid time window details were sent in the request'
+        reservation_number:
+          type: string
+          example: '1234567890'
+
+    CapacityUnavailableError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'The time window selected no longer has availability. Please get new reservation choices'
+        reservation_number:
+          type: string
+          example: '1234567890'
+
+    ReservationNotEligibleForReschedulingError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Reservation with given Reservation number already exists and not eligible for rescheduling as associated order status is Finished'
+        reservation_number:
+          type: string
+          example: '1234567890'
+
+    ReservationNotEligibleForReleaseError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'This reservation is not eligible to be released'
+        order_status:
+          type: string
+          example: 'Finished'
+        route_status:
+          type: string
+          example: 'Started'
+        reservation_number:
+          type: string
+          example: '1234567890'
+
+    ReservationNotFoundError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Reservation not found.'
+
+    ReservationError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Please send all mandatory fields'
+        reservation_number:
+          type: string
+          example: '1234567890'
+
+    ApiKeyCodeNotFoundError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Valid API Key and API Code are required'
+
+    DriversResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 200
+        success:
+          type: boolean
+          example: true
+        count:
+          type: integer
+          example: 1
+        version:
+          type: string
+          example: 'v123'
+        drivers:
+          type: object
+          properties:
+            driver:
+              type: array
+              items:
+                $ref: '#/components/schemas/DriverResponse'
+
+    DriverResponse:
+      type: object
+      properties:
+        driver_number:
+          type: string
+          example: 'test t1'
+        driver_profile_img_url:
+          type: string
+          example: 'https://smediadev.dispatchtrack.com/api/v1/image/fDDeY03tzeAwVTCAWuX3ABj8rWbTrnMe7tcHnFLmDHTaVVtE9wMEpc38nPdE%0AXB69c0PWHSSUgJuWpbNJVX9YqvlPS%2F6QQB3m%2FMh46V3e33A%3D%0A'
+        name:
+          type: string
+          example: 'namet1'
+        login:
+          type: string
+          example: 'logint1'
+        description:
+          type: string
+          example: 'MWF driver'
+        skill_level:
+          type: string
+          example: '2'
+        efficiency_factor:
+          type: string
+          example: '1'
+        time_zone:
+          type: string
+          example: 'America/New_York'
+        status:
+          type: string
+          example: '1'
+          description: 'Driver status: "1" for active, "0" for inactive'
+        pay_group:
+          type: string
+          example: 'RK'
+        work_days:
+          type: string
+          example: 'M,T,W,H,F,S,U'
+        enable_sso:
+          type: boolean
+          example: true
+        license_number:
+          type: string
+          example: 'ABC1234567'
+        license_state:
+          type: string
+          example: 'CA'
+        dot_number:
+          type: string
+          example: '1234567890'
+        contact_number:
+          type: string
+          example: '1234567890'
+        accounts:
+          type: object
+          properties:
+            account:
+              type: array
+              items:
+                type: string
+              example: ['A1', '500']
+
+  securitySchemes:
+    GetTokenAuth:
+      type: http
+      scheme: basic
+    Auth:
+      type: http
+      scheme: bearer
+    RsApiAuth:
+      type: apiKey
+      in: header
+      name: Api-Key
+      description: >
+        Reservation API authentication requires both a business `Code` header and an `Api-Key` header.
+        These can alternatively be passed as `code` and `api_key` query parameters or in the request body.
+        The business must have new reservation enabled to access these endpoints.
